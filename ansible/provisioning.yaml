@@ -1,0 +1,131 @@
+---
+- name: Provisioning a node
+  hosts: charon_test
+  gather_facts: false
+
+  vars:
+    target_k3s_version: "v1.28.7+k3s1"
+    k3s_namespace: charon
+    mimir_url: "http://mimir-nginx.{{ k3s_namespace }}.svc:80/api/v1/push"
+    scrape_interval: 15s
+
+  tasks:
+  # TODO: we would want to check if the host OS is Debian/Ubuntu
+  - name: Install base packages
+    ansible.builtin.apt:
+      pkg:
+      - curl
+      - python3-pip
+      - apt-transport-https
+      # add other packages here
+  
+  - name: Upgrade pip
+    ansible.builtin.pip:
+      name: pip
+      state: latest
+  
+  - name: Install Python packages
+    ansible.builtin.pip:
+      name: kubernetes
+      state: present
+
+  # TODO: we may want to skip this if already exists
+  - name: Get k3s installed version
+    ansible.builtin.command: k3s --version
+    register: k3s_version_output
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set k3s installed version
+    when: k3s_version_output.rc == 0
+    ansible.builtin.set_fact:
+      installed_k3s_version: "{{ k3s_version_output.stdout_lines[0].split(' ')[2] }}"
+
+  - name: Install Kubernetes (k3s)
+    ansible.builtin.shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ target_k3s_version }}" K3S_CLUSTER_SECRET=4tX0DUZ0uQknRtVUAKjt sh -
+    args:
+      executable: /bin/bash
+    when: installed_k3s_version is match(target_k3s_version)
+  
+  - name: Install Helm chart
+    ansible.builtin.shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    args:
+      executable: /bin/bash
+  
+  - name: Ensure k3s systemd is in running state
+    service:
+      name: k3s
+      state: started
+    register: k3sDetails
+    until: k3sDetails.status.ActiveState == "active"
+    retries: 10
+    delay: 5
+
+  - name: Create mimir namespace in Kubernetes
+    kubernetes.core.k8s:
+      name: "{{ k3s_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+  - name: Add grafana mimir to Helm chart
+    kubernetes.core.helm_repository:
+      name: grafana
+      repo_url: https://grafana.github.io/helm-charts
+
+  - name: Deploy Grafana mimir in Kubernetes
+    kubernetes.core.helm:
+      name: mimir
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: grafana/mimir-distributed
+
+  - name: Add Nvidia DCGM to Helm chart
+    kubernetes.core.helm_repository:
+      name: gpu-helm-charts
+      repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
+
+  - name: Deploy Nvidia DCGM in Kubernetes
+    kubernetes.core.helm:
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: gpu-helm-charts/dcgm-exporter
+
+  - name: Deploy Grafana dashboard
+    kubernetes.core.k8s:
+      state: present
+      namespace: "{{ k3s_namespace }}"
+      definition: "{{ lookup('file', 'kubernetes/grafana.yaml') | from_yaml_all }}"
+
+  - name: Install Grafana CRDs
+    kubernetes.core.k8s:
+      state: present
+      src: "{{ item }}"
+    with_items:
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.coreos.com_podmonitors.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.coreos.com_probes.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.coreos.com_servicemonitors.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_grafanaagents.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_integrations.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_logsinstances.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_metricsinstances.yaml
+    - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_podlogs.yaml
+    ignore_errors: true
+  
+  - name: Install Grafana operator
+    kubernetes.core.k8s:
+      state: present
+      namespace: "{{ k3s_namespace }}"
+      definition: "{{ lookup('file', 'kubernetes/grafana-operator.yaml') | from_yaml_all }}"
+
+  - name: Install Grafana agent
+    kubernetes.core.k8s:
+      state: present
+      namespace: "{{ k3s_namespace }}"
+      definition: "{{ lookup('file', 'kubernetes/grafana-agent.yaml') | from_yaml_all }}"
+
+  - name: Deploy Grafana operator scrapers
+    kubernetes.core.k8s:
+      state: present
+      namespace: "{{ k3s_namespace }}"
+      definition: "{{ lookup('template', 'kubernetes/grafana-operator-scrape.yaml.j2') | from_yaml_all }}"
