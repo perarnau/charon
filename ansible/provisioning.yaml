@@ -2,6 +2,7 @@
 - name: Provisioning a node
   hosts: charon_test
   gather_facts: false
+  become: true
 
   vars:
     target_k3s_version: "v1.28.7+k3s1"
@@ -61,7 +62,7 @@
     retries: 10
     delay: 5
 
-  - name: Create mimir namespace in Kubernetes
+  - name: Create our namespace in Kubernetes
     kubernetes.core.k8s:
       name: "{{ k3s_namespace }}"
       api_version: v1

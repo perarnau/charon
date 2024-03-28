@@ -1,39 +1,7 @@
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: grafana-agent-operator
-  labels:
-    app: grafana-agent-operator
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: grafana-agent-operator
-  template:
-    metadata:
-      labels:
-        app: grafana-agent-operator
-    spec:
-      nodeSelector:
-        node-role.kubernetes.io/master: "true"
-      serviceAccountName: grafana-agent-operator
-      containers:
-      - name: operator
-        image: grafana/agent-operator:v0.37.2
-        args:
-        - --kubelet-service=default/kubelet
-        resources:
-          limits:
-            memory: 100Mi
-          requests:
-            cpu: 100m
-            memory: 100Mi
----
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: grafana-agent-operator
-  namespace: default
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -85,3 +53,34 @@ subjects:
 - kind: ServiceAccount
   name: grafana-agent-operator
   namespace: default
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana-agent-operator
+  labels:
+    app: grafana-agent-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana-agent-operator
+  template:
+    metadata:
+      labels:
+        app: grafana-agent-operator
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      serviceAccountName: grafana-agent-operator
+      containers:
+      - name: operator
+        image: grafana/agent-operator:v0.37.2
+        args:
+        - --kubelet-service=default/kubelet
+        resources:
+          limits:
+            memory: 100Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
