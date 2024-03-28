@@ -45,7 +45,7 @@
     ansible.builtin.shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ target_k3s_version }}" K3S_CLUSTER_SECRET=4tX0DUZ0uQknRtVUAKjt sh -
     args:
       executable: /bin/bash
-    when: installed_k3s_version is match(target_k3s_version)
+    when: k3s_version_output.rc != 0
   
   - name: Install Helm chart
     ansible.builtin.shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -69,38 +69,11 @@
       state: present
       kubeconfig: /etc/rancher/k3s/k3s.yaml
 
-  - name: Add grafana mimir to Helm chart
-    kubernetes.core.helm_repository:
-      name: grafana
-      repo_url: https://grafana.github.io/helm-charts
-
-  - name: Deploy Grafana mimir in Kubernetes
-    kubernetes.core.helm:
-      name: mimir
-      namespace: "{{ k3s_namespace }}"
-      chart_ref: grafana/mimir-distributed
-
-  - name: Add Nvidia DCGM to Helm chart
-    kubernetes.core.helm_repository:
-      name: gpu-helm-charts
-      repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
-
-  - name: Deploy Nvidia DCGM in Kubernetes
-    kubernetes.core.helm:
-      name: nvidia-dcgm
-      namespace: "{{ k3s_namespace }}"
-      chart_ref: gpu-helm-charts/dcgm-exporter
-
-  - name: Deploy Grafana dashboard
-    kubernetes.core.k8s:
-      state: present
-      namespace: "{{ k3s_namespace }}"
-      definition: "{{ lookup('file', 'kubernetes/grafana.yaml') | from_yaml_all }}"
-
   - name: Install Grafana CRDs
     kubernetes.core.k8s:
       state: present
       src: "{{ item }}"
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
     with_items:
     - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.coreos.com_podmonitors.yaml
     - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.coreos.com_probes.yaml
@@ -112,20 +85,54 @@
     - https://raw.githubusercontent.com/grafana/agent/main/operations/agent-static-operator/crds/monitoring.grafana.com_podlogs.yaml
     ignore_errors: true
   
+  - name: Add grafana mimir to Helm chart
+    kubernetes.core.helm_repository:
+      name: grafana
+      repo_url: https://grafana.github.io/helm-charts
+
+  - name: Deploy Grafana mimir in Kubernetes
+    kubernetes.core.helm:
+      name: mimir
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: grafana/mimir-distributed
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+  - name: Add Nvidia DCGM to Helm chart
+    kubernetes.core.helm_repository:
+      name: gpu-helm-charts
+      repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
+
+  - name: Deploy Nvidia DCGM in Kubernetes
+    kubernetes.core.helm:
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: gpu-helm-charts/dcgm-exporter
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+
+  - name: Deploy Grafana dashboard
+    kubernetes.core.k8s:
+      state: present
+      namespace: "{{ k3s_namespace }}"
+      definition: "{{ lookup('file', 'kubernetes/grafana.yaml') | from_yaml_all }}"
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+
   - name: Install Grafana operator
     kubernetes.core.k8s:
       state: present
       namespace: "{{ k3s_namespace }}"
       definition: "{{ lookup('file', 'kubernetes/grafana-operator.yaml') | from_yaml_all }}"
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
 
   - name: Install Grafana agent
     kubernetes.core.k8s:
       state: present
       namespace: "{{ k3s_namespace }}"
       definition: "{{ lookup('file', 'kubernetes/grafana-agent.yaml') | from_yaml_all }}"
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
 
   - name: Deploy Grafana operator scrapers
     kubernetes.core.k8s:
       state: present
       namespace: "{{ k3s_namespace }}"
       definition: "{{ lookup('template', 'kubernetes/grafana-operator-scrape.yaml.j2') | from_yaml_all }}"
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
