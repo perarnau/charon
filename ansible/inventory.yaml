@@ -1,0 +1,6 @@
+---
+charon_test:
+  hosts:
+    master:
+      ansible_host: 192.5.86.216
+      ansible_user: cc

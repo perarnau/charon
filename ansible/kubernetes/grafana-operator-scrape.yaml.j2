@@ -2,7 +2,6 @@ apiVersion: monitoring.grafana.com/v1alpha1
 kind: MetricsInstance
 metadata:
   name: primary
-  namespace: default
   labels:
     agent: grafana-agent-metrics
 spec:
@@ -34,7 +33,6 @@ apiVersion: monitoring.grafana.com/v1alpha1
 kind: Integration
 metadata:
  name: node-exporter
- namespace: default
  labels:
    agent: grafana-agent-integrations
 spec:
@@ -45,7 +43,7 @@ spec:
  config:
    autoscrape:
      enable: true
-     metrics_instance: default/primary
+     metrics_instance: {{ k3s_namespace }}/primary
    rootfs_path: /default/node_exporter/rootfs
    sysfs_path: /default/node_exporter/sys
    procfs_path: /default/node_exporter/proc
@@ -73,7 +71,6 @@ metadata:
   labels:
     instance: primary
   name: kubelet-monitor
-  namespace: default
 spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -108,7 +105,6 @@ metadata:
   labels:
     instance: primary
   name: cadvisor-monitor
-  namespace: default
 spec:
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
@@ -138,40 +134,3 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: kubelet
----
-apiVersion: monitoring.grafana.com/v1alpha1
-kind: Integration
-metadata:
- name: node-exporter
- namespace: default
- labels:
-   agent: grafana-agent-integrations
-spec:
- name: node_exporter
- type:
-   allNodes: true
-   unique: true
- config:
-   autoscrape:
-     enable: true
-     metrics_instance: default/primary
-   rootfs_path: /default/node_exporter/rootfs
-   sysfs_path: /default/node_exporter/sys
-   procfs_path: /default/node_exporter/proc
- volumeMounts:
-   - mountPath: /default/node_exporter/proc
-     name: proc
-   - mountPath: /default/node_exporter/sys
-     name: sys
-   - mountPath: /default/node_exporter/rootfs
-     name: root
- volumes:
-   - name: proc
-     hostPath:
-       path: /proc
-   - name: sys
-     hostPath:
-       path: /sys
-   - name: root
-     hostPath:
-       path: /root

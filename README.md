@@ -9,3 +9,5 @@ __TODO: the provisioning should account for multi-node setup consisting of one K
 __TODO: we need to add NRMD in the provisioning script.__
 
 __NOTE: For k3s and helm chart installations, we may use their Ansible scripts located [here for k3s](https://github.com/k3s-io/k3s-ansible/tree/master) and [here for helm](https://github.com/gantsign/ansible_role_helm) instead of the [provisioning.yaml](scripts/provisioning.yaml).__
+
+__TODO: DCGM needs CUDA DCGM package installed on the host__

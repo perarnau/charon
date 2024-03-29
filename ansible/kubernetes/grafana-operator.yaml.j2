@@ -52,7 +52,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: grafana-agent-operator
-  namespace: default
+  namespace: {{ k3s_namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment

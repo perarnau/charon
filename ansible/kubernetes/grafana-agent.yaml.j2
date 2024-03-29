@@ -2,8 +2,6 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: grafana-agent
-  namespace: default
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -37,7 +35,6 @@ rules:
   - /metrics/cadvisor
   verbs:
   - get
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -50,7 +47,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: grafana-agent
-  namespace: default
+  namespace: {{ k3s_namespace }}
 ---
 apiVersion: monitoring.grafana.com/v1alpha1
 kind: GrafanaAgent
