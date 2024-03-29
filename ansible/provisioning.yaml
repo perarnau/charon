@@ -18,6 +18,7 @@
       - curl
       - python3-pip
       - apt-transport-https
+      - nvidia-container-toolkit
       # add other packages here
   
   - name: Upgrade pip
@@ -151,6 +152,9 @@
       name: nvidia-dcgm
       namespace: "{{ k3s_namespace }}"
       chart_ref: gpu-helm-charts/dcgm-exporter
+      set_values:
+      - value: runtimeClassName=nvidia
+        value_type: string
 
   - name: Create ConfigMap for Grafana dashboard
     kubernetes.core.k8s:
