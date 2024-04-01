@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mirror-server
+spec:
+  selector:
+    matchLabels:
+      app: mirror-server
+  template:
+    metadata:
+      labels:
+        app: mirror-server
+    spec:
+      containers:
+      - name: mirror-server
+        image: classicblue/ptychonn:0.5.4
+        command: ["pvapy-mirror-server"]
+        args:
+        - --channel-map
+        - "(pvapy:image,ad:image,pva,20000)"
