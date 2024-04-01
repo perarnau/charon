@@ -13,7 +13,6 @@ spec:
     spec:
       containers:
       - name: sim-server
-        restartPolicy: Never
         resizePolicy: # for pod being updated without restarting
         - resourceName: cpu
           restartPolicy: NotRequired
@@ -37,7 +36,7 @@ spec:
         - --disable-curses
         resources:
           limits:
-            memory: 3Gi
+            memory: 2Gi
           requests:
             cpu: 1000m
             memory: 500Mi
