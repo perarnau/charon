@@ -2,5 +2,6 @@
 charon_test:
   hosts:
     master:
-      ansible_host: 192.5.86.216
+      ansible_host: "UPDATEME"
       ansible_user: cc
+      ansible_ssh_private_key_file: "UPDATEME"

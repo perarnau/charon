@@ -4,6 +4,15 @@ This repository contains scripts to provision a set of computing machines and bu
 ## Provisioning a computing cluster
 In the provisioning process, we install Kubernetes (k3s), Helm chart (Kubernetes package manager), Mimir (time-series storage), Grafana-agent/operator (Prometheus metrics scraper), and Grafana (metrics visualization). In the end of this process, the node is ready to take workloads.
 
+First, update the [inventory.yaml](ansible/inventory.yaml) for "UPDATEME"s.
+
+Then run,
+```bash
+ansible-playbook -i ansible/inventory.yaml ansible/provisioning.yaml
+```
+
+## TODO Items
+
 __TODO: the provisioning should account for multi-node setup consisting of one Kubernetes master and many workers across machines.__
 
 __TODO: we need to add NRMD in the provisioning script.__
