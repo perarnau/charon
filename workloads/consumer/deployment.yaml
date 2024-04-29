@@ -17,7 +17,7 @@ spec:
         command: ["pvapy-hpc-consumer"]
         args:
         - --input-channel
-        - "pvapy:waggle1"
+        - "pvapy:image"
         - --consumer-id
         - "1"
         - --control-channel

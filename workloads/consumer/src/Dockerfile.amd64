@@ -1,4 +1,4 @@
-FROM nvcr.io/nvidia/tensorrt:22.12-py3
+FROM nvcr.io/nvidia/tensorrt:23.01-py3
 
 WORKDIR /app
 COPY requirements.txt inferPtychoNN.py inferPtychoNNImageProcessor.py helper.py /app/
