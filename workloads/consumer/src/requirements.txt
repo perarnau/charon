@@ -1,0 +1,7 @@
+numpy=>1.22
+pvapy==5.3.*
+#scikit-image
+#torch
+#torchvision
+psutil
+nano

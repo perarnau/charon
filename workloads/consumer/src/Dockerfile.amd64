@@ -1,0 +1,12 @@
+FROM nvcr.io/nvidia/tensorrt:22.12-py3
+
+WORKDIR /app
+COPY requirements.txt inferPtychoNN.py inferPtychoNNImageProcessor.py /app
+RUN pip3 install --upgrade pip
+RUN pip3 install -r requirements.txt
+
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychoNN_8_128_fp16.trt /app/model_128.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/diff_scan_810.npy /app/scan.npy
+ENV PYTHONPATH "${PYTHONPATH}:/app"

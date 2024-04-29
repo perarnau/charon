@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+spec:
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+      - name: consumer
+        image: classicblue/ptychonn:0.5.4-ml-amd64
+        command: ["pvapy-hpc-consumer"]
+        args:
+        - --input-channel
+        - "pvapy:waggle1"
+        - --consumer-id
+        - 1
+        - --control-channel
+        - "processor:*:control"
+        - --status-channel
+        - "processor:*:status"
+        - --output-channel
+        - "processor:*:output"
+        - --processor-file
+        - "/app/inferPtychoNNImageProcessor.py"
+        - --processor-class
+        - "InferPtychoNNImageProcessor"
+        - --processor-args
+        - '{"onnx_mdl": "/app/model_512_fp16.trt", "output_x": 64, "output_y": 64, "net": "wan0"}'
+        - --report-period
+        - 5
+        - --n-consumers
+        - 1
+        - --server-queue-size
+        - 100
+        - --monitor-queue-size
+        - 1000
+        - --distributor-updates
+        - 8
+        - --disable-curses
+
