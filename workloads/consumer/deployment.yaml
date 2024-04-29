@@ -19,7 +19,7 @@ spec:
         - --input-channel
         - "pvapy:waggle1"
         - --consumer-id
-        - 1
+        - "1"
         - --control-channel
         - "processor:*:control"
         - --status-channel
@@ -33,14 +33,14 @@ spec:
         - --processor-args
         - '{"onnx_mdl": "/app/model_512_fp16.trt", "output_x": 64, "output_y": 64, "net": "wan0"}'
         - --report-period
-        - 5
+        - "5"
         - --n-consumers
-        - 1
+        - "1"
         - --server-queue-size
-        - 100
+        - "100"
         - --monitor-queue-size
-        - 1000
+        - "1000"
         - --distributor-updates
-        - 8
+        - "8"
         - --disable-curses
 
