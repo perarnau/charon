@@ -22,10 +22,26 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nBatchesProcessed = 0
         self.inferTime = 0
 
-        self.promnFramesProcessed = Counter("pvapy_frame_processed", "Number of processed frames")
-        self.promnBatchesProcessed = Counter("pvapy_batch_processed", "Number of processed batches")
-        self.prominferTime = Counter("pvapy_inference_time_acc", "Accumulated elapsed milliseconds for inference")
-        self.promnFramesQueued = Gauge("pvapy_frame_queued", "Number of queued frames")
+        self.promnFramesProcessed = Counter(
+            "pvapy_frame_processed",
+            "Number of processed frames",
+            labelnames=["pvapy_processor_id",]
+        )
+        self.promnBatchesProcessed = Counter(
+            "pvapy_batch_processed",
+            "Number of processed batches",
+            labelnames=["pvapy_processor_id",]
+        )
+        self.prominferTime = Counter(
+            "pvapy_inference_time_acc",
+            "Accumulated elapsed milliseconds for inference",
+            labelnames=["pvapy_processor_id",]
+        )
+        self.promnFramesQueued = Gauge(
+            "pvapy_frame_queued",
+            "Number of queued frames",
+            labelnames=["pvapy_processor_id",]
+        )
 
         self.bsz = configDict.get('bsz', 8)
         self.onnx_mdl = configDict.get('onnx_mdl', '/app/model_128.trt')
@@ -63,7 +79,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 break
             try:
                 frm_id, in_frame, ny, nx, attr = self.tq_frame_q.get(block=True, timeout=waitTime)
-                self.promnFramesQueued.set(self.tq_frame_q.size())
+                self.promnFramesQueued.labels(self.processorId).set(self.tq_frame_q.size())
             except queue.Empty:
                 continue
             except KeyboardInterrupt:
@@ -91,17 +107,11 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 self.inferEngine.batch_infer(nx, ny, self.output_x, self.output_y, attr)
                 t1 = time.time()
                 self.nBatchesProcessed += 1
-                self.promnBatchesProcessed.inc()
+                self.promnBatchesProcessed.labels(self.processorId).inc()
                 self.nFramesProcessed += bsz
-                self.promnFramesProcessed.inc(bsz)
+                self.promnFramesProcessed.labels(self.processorId).inc(bsz)
                 self.inferTime += t1-t0
-                self.prominferTime.inc(t1-t0)
-
-        #         inferRate = 0
-        # frameProcessingRate = 0
-        # if self.nBatchesProcessed  > 0:
-        #     inferRate = self.nBatchesProcessed /self.inferTime
-        #     frameProcessingRate = self.nFramesProcessed/self.inferTime
+                self.prominferTime.labels(self.processorId).inc(t1-t0)
 
         try:
             self.logger.debug(f'Stopping infer engine')
@@ -129,7 +139,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']
         self.tq_frame_q.put((frameId, image, ny, nx, attributes))
-        self.promnFramesQueued.set(self.tq_frame_q.size())
+        self.promnFramesQueued.labels(self.proess_id).set(self.tq_frame_q.size())
         return pvObject
 
     def resetStats(self):
