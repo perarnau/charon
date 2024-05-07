@@ -14,6 +14,8 @@ spec:
       containers:
       - name: consumer
         image: classicblue/ptychonn:0.5.4-ml-amd64
+        ports:
+        - containerPort: 9100
         command: ["pvapy-hpc-consumer"]
         args:
         - --input-channel

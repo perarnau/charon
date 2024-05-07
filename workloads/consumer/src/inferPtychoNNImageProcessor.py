@@ -9,7 +9,7 @@ import psutil
 import pvapy as pva
 from pvapy.hpc.adImageProcessor import AdImageProcessor
 
-from prometheus_client import Gauge, Counter
+from prometheus_client import start_http_server, Gauge, Counter
 
 
 class InferPtychoNNImageProcessor(AdImageProcessor):
@@ -44,7 +44,9 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def inferWorker(self):
         self.logger.debug('Starting infer worker')
-        self.gpu = (self.processorId - 1) % self.nGPU
+        # NOTE: we have only one GPU per node.
+        # self.gpu = (self.processorId - 1) % self.nGPU
+        self.gpu = 0
         self.logger.debug(f'Using gpu: {self.gpu}')
         os.environ['CUDA_VISIBLE_DEVICES'] = str(self.gpu)
         #from pvaInferPtychoNN import inferPtychoNNtrt

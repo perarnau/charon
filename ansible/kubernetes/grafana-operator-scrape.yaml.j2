@@ -134,3 +134,37 @@ spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: kubelet
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    instance: primary
+  name: pvapy-monitor
+spec:
+  podMetricsEndpoints:
+  - honorLabels: true
+    interval: 5s
+    metricRelabelings:
+    - action: keep
+      regex: ^pvapy_(.*)
+      sourceLabels:
+      - __name__
+    targetPort: 9100
+    path: /metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - sourceLabels:
+      - __meta_kubernetes_pod_node_name
+      targetLabel: hostname
+    - action: replace
+      targetLabel: job
+      replacement: integrations/kubernetes/pod
+    scheme: http
+  selector:
+    matchLabels:
+  namespaceSelector:
+    matchNames:
+    - workload
