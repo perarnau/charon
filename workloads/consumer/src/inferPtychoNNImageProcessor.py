@@ -139,16 +139,16 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']
         self.tq_frame_q.put((frameId, image, ny, nx, attributes))
-        self.promnFramesQueued.labels(self.proess_id).set(self.tq_frame_q.size())
+        self.promnFramesQueued.labels(self.processorId).set(self.tq_frame_q.size())
         return pvObject
 
     def resetStats(self):
         self.nFramesProcessed = 0
-        self.promnFramesProcessed.reset()
+        self.promnFramesProcessed.labels(self.processorId).reset()
         self.nBatchesProcessed = 0
-        self.promnBatchesProcessed.reset()
+        self.promnBatchesProcessed.labels(self.processorId).reset()
         self.inferTime = 0
-        self.prominferTime.reset()
+        self.prominferTime.labels(self.processorId).reset()
         self.m_network_tx_last = 0.
         self.m_network_rx_last = 0.
 
