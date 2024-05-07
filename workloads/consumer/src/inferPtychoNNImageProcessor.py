@@ -60,6 +60,10 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         #       the program fails due to the fact that server_http_server
         #       is called more than once. try-catch should prevent a failure
         #       from this. Ideally, this needs to go to somewhere in pvapy-hpc-consumer
+        # NOTE: This Prometheus exporter only works when n-consumer == 1
+        #       because other processes do not start this server.
+        # TODO: We will need to add a proxy so that Prometheus server updates metrics
+        #       from all the processes in the Pod
         try:
             start_http_server(9100)
         except Exception as ex:
