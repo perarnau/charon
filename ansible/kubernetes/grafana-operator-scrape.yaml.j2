@@ -136,6 +136,35 @@ spec:
       app.kubernetes.io/name: kubelet
 ---
 apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    instance: primary
+  name: dcgm-monitor
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    honorLabels: true
+    honorTimestamps: false
+    interval: {{ scrape_interval }}
+    path: /metrics
+    port: metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - action: replace
+      targetLabel: job
+      replacement: integrations/dcgm-exporter
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - {{ k3s_namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+---
+apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   labels:
