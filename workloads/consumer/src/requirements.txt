@@ -5,3 +5,4 @@ pvapy==5.3.*
 #torchvision
 psutil
 nano
+prometheus-client
