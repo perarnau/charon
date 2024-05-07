@@ -55,8 +55,15 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.m_network_tx_last = 0.
         self.isDone = False
 
-        self.logger.debug("Starting Prometheus endpoint")
-        start_http_server(9100)
+        self.logger.debug("Starting Prometheus server")
+        # NOTE: when pvapy-hpc-consumer is set with n-consumer > 1
+        #       the program fails due to the fact that server_http_server
+        #       is called more than once. try-catch should prevent a failure
+        #       from this. Ideally, this needs to go to somewhere in pvapy-hpc-consumer
+        try:
+            start_http_server(9100)
+        except Exception as ex:
+            self.logger.debug(f'Failed to start Prometheus server: {ex}')
 
     def inferWorker(self):
         self.logger.debug('Starting infer worker')
