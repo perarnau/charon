@@ -204,3 +204,74 @@
       state: present
       namespace: "{{ k3s_namespace }}"
       definition: "{{ lookup('template', 'kubernetes/grafana-operator-scrape.yaml.j2') | from_yaml_all }}"
+
+# NRM installations
+  - name: Create directory for dependencies
+    when: ansible_user is defined
+    ansible.builtin.file:
+      path: ~{{ ansible_user }}/dependencies
+      state: directory
+      owner: "{{ ansible_user }}"
+      mode: "u=rwx,g=rx,o="
+
+  - name: Add the geopm PPA repository
+    apt_repository:
+      repo: 'ppa:geopm/release'
+      state: present
+
+  - name: Update the apt package list
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: Install apt dependencies
+    ansible.builtin.apt:
+      name:
+        - gcc
+        - make
+        - autoconf
+        - automake
+        - libtool
+        - pkg-config
+        - libzmq3-dev
+        - libzmq5
+        - libczmq-dev
+        - libczmq4
+        - libprotobuf-c-dev
+        - protobuf-c-compiler
+        - libjansson-dev
+        - libjansson4
+        - check
+        - libhwloc-dev
+        - libpapi-dev
+        - mpich
+        - libomp-dev
+        - libomp5
+        - geopm-service
+        - libgeopmd-dev
+        - libgeopmd2
+        - python3-geopmdpy
+      state: present
+      update_cache: yes
+
+  - name: Clone bats
+    ansible.builtin.git:
+      repo: 'https://github.com/bats-core/bats-core.git'
+      dest: ~{{ ansible_user }}/dependencies/bats
+      version: v1.9.0
+  - name: Clone libnrm
+    ansible.builtin.git:
+      repo: 'https://github.com/anlsys/libnrm.git'
+      dest: ~{{ ansible_user }}/dependencies/libnrm
+  
+  - name: Install bats
+    ansible.builtin.shell: |
+      cd ~{{ ansible_user }}/dependencies/bats
+      ./install.sh /usr
+
+  - name: Install libnrm
+    ansible.builtin.shell: |
+      cd ~{{ ansible_user }}/dependencies/libnrm
+      ./autogen.sh
+      ./configure --prefix=/usr --with-geopm GEOPM_CFLAGS="-I/usr/include" GEOPM_LIBS="-L/usr/lib/x86_64-linux-gnu/lib -lgeopmd" CFLAGS="-std=c17 -Wall -Wextra -Werror -Wno-builtin-declaration-mismatch"
+      make
+      make install
