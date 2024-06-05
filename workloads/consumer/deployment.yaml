@@ -16,6 +16,16 @@ spec:
         image: classicblue/ptychonn:0.5.4-ml-amd64
         ports:
         - containerPort: 9100
+        env:
+        # TODO: we need to test this to make sure the pod can see the host's NRM daemon
+        - name: NRM_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        - name: NRM_RPC_PORT
+          value: 3456
+        - name: NRM_PUB_PORT
+          value: 2345
         command: ["pvapy-hpc-consumer"]
         args:
         - --input-channel

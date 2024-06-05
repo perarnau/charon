@@ -14,3 +14,58 @@ RUN pip3 install -r requirements.txt
 COPY inferPtychoNN.py inferPtychoNNImageProcessor.py helper.py /app/
 ENV PYTHONPATH "${PYTHONPATH}:/app"
 EXPOSE 9100
+
+## TODO: we need to massage this here to use nrm client to publish metrics to nrm.
+##       the code comes from the Ansible script
+# - name: Install apt dependencies
+#     ansible.builtin.apt:
+#       name:
+#         - gcc
+#         - make
+#         - autoconf
+#         - automake
+#         - libtool
+#         - pkg-config
+#         - libzmq3-dev
+#         - libzmq5
+#         - libczmq-dev
+#         - libczmq4
+#         - libprotobuf-c-dev
+#         - protobuf-c-compiler
+#         - libjansson-dev
+#         - libjansson4
+#         - check
+#         - libhwloc-dev
+#         - libpapi-dev
+#         - mpich
+#         - libomp-dev
+#         - libomp5
+#         - geopm-service
+#         - libgeopmd-dev
+#         - libgeopmd2
+#         - python3-geopmdpy
+#       state: present
+#       update_cache: yes
+
+#   - name: Clone bats
+#     ansible.builtin.git:
+#       repo: 'https://github.com/bats-core/bats-core.git'
+#       dest: ~{{ ansible_user }}/dependencies/bats
+#       version: v1.9.0
+#   - name: Clone libnrm
+#     ansible.builtin.git:
+#       repo: 'https://github.com/anlsys/libnrm.git'
+#       dest: ~{{ ansible_user }}/dependencies/libnrm
+  
+#   - name: Install bats
+#     ansible.builtin.shell: |
+#       cd ~{{ ansible_user }}/dependencies/bats
+#       ./install.sh /usr
+
+#   - name: Install libnrm
+#     ansible.builtin.shell: |
+#       cd ~{{ ansible_user }}/dependencies/libnrm
+#       ./autogen.sh
+#       ./configure --prefix=/usr --with-geopm GEOPM_CFLAGS="-I/usr/include" GEOPM_LIBS="-L/usr/lib/x86_64-linux-gnu/lib -lgeopmd" CFLAGS="-std=c17 -Wall -Wextra -Werror -Wno-builtin-declaration-mismatch"
+#       make
+#       make install
