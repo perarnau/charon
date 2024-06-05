@@ -28,21 +28,25 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nrm_allscope = self.nrmclient.list_scopes()[0]
 
     def __instrumentation_framesprocessed(self, bsz):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_frames,
+        now = nrm.nrm_time_fromns(time.time_ns())
+        self.nrmclient.send_event(now, self.nrm_frames,
                                   self.nrm_allscope, bsz)
         self.promnFramesProcessed.labels(self.processorId).inc(bsz)
 
     def __instrumentation_batchesprocessed(self, b):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_batches,
+        now = nrm.nrm_time_fromns(time.time_ns())
+        self.nrmclient.send_event(now, self.nrm_batches,
                                   self.nrm_allscope, b)
         self.promnBatchesProcessed.labels(self.processorId).inc(b)
 
     def __instrumentation_infertime(self, t):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_infer,
+        now = nrm.nrm_time_fromns(time.time_ns())
+        self.nrmclient.send_event(now, self.nrm_infer,
                                   self.nrm_allscope, t)
         self.prominferTime.labels(self.processorId).inc(t)
 
     def __instrumentation_queued(self, f):
+        now = nrm.nrm_time_fromns(time.time_ns())
         self.nrmclient.send_event(self.nrmclient.now(), self.nrm_queued,
                                   self.nrm_allscope, f)
         self.promnFramesQueued.labels(self.processorId).set(f)
