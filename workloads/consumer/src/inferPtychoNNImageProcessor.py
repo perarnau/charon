@@ -11,8 +11,42 @@ from pvapy.hpc.adImageProcessor import AdImageProcessor
 
 from prometheus_client import start_http_server, Gauge, Counter
 
+import nrm
+
 
 class InferPtychoNNImageProcessor(AdImageProcessor):
+
+    def __nrm_init__(self):
+        self.nrmclient = nrm.Client(nrm.upstream_uri,
+                                    nrm.upstream_rpc_port,
+                                    nrm.upstream_pub_port)
+
+        self.nrm_frames = self.nrmclient.add_sensor("ptychonn.framesprocessed")
+        self.nrm_batches = self.nrmclient.add_sensor("ptychonn.batchesprocessed")
+        self.nrm_infer = self.nrmclient.add_sensor("ptychonn.inferTime")
+        self.nrm_queued = self.nrmclient.add_sensor("ptychonn.framesqueued")
+        self.nrm_allscope = self.nrmclient.list_scopes()[0]
+
+    def __instrumentation_framesprocessed(self, bsz):
+        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_frames,
+                                  self.nrm_allscope, bsz)
+        self.promnFramesProcessed.labels(self.processorId).inc(bsz)
+
+    def __instrumentation_batchesprocessed(self, b):
+        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_batches,
+                                  self.nrm_allscope, b)
+        self.promnBatchesProcessed.labels(self.processorId).inc(b)
+
+    def __instrumentation_infertime(self, t):
+        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_infer,
+                                  self.nrm_allscope, t)
+        self.prominferTime.labels(self.processorId).inc(t)
+
+    def __instrumentation_queued(self, f):
+        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_queued,
+                                  self.nrm_allscope, f)
+        self.promnFramesQueued.labels(self.processorId).set(f)
+
     def __init__(self, configDict={}):
         AdImageProcessor.__init__(self, configDict)
         self.tq_frame_q = mp.Queue(maxsize=-1)
@@ -21,6 +55,8 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nFramesProcessed = 0
         self.nBatchesProcessed = 0
         self.inferTime = 0
+
+        __nrm_init__()
 
         self.promnFramesProcessed = Counter(
             "pvapy_frame_processed",
@@ -90,7 +126,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 break
             try:
                 frm_id, in_frame, ny, nx, attr = self.tq_frame_q.get(block=True, timeout=waitTime)
-                self.promnFramesQueued.labels(self.processorId).set(self.tq_frame_q.size())
+                self.__instrumentation_queued(self.tq_frame_q.size())
             except queue.Empty:
                 continue
             except KeyboardInterrupt:
@@ -118,11 +154,11 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 self.inferEngine.batch_infer(nx, ny, self.output_x, self.output_y, attr)
                 t1 = time.time()
                 self.nBatchesProcessed += 1
-                self.promnBatchesProcessed.labels(self.processorId).inc()
+                self.__instrumentation_batchesprocessed(1)
                 self.nFramesProcessed += bsz
-                self.promnFramesProcessed.labels(self.processorId).inc(bsz)
+                self.__instrumentation_frameprocessed(bsz)
                 self.inferTime += t1-t0
-                self.prominferTime.labels(self.processorId).inc(t1-t0)
+                self.__instrumentation_infertime(t1-t0)
 
         try:
             self.logger.debug(f'Stopping infer engine')
@@ -150,7 +186,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']
         self.tq_frame_q.put((frameId, image, ny, nx, attributes))
-        self.promnFramesQueued.labels(self.processorId).set(self.tq_frame_q.size())
+        self.__instrumentation_queued(self.tq_frame_q.size())
         return pvObject
 
     def resetStats(self):
