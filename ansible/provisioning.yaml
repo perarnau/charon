@@ -205,9 +205,9 @@
       namespace: "{{ k3s_namespace }}"
       definition: "{{ lookup('template', 'kubernetes/grafana-operator-scrape.yaml.j2') | from_yaml_all }}"
 
-# NRM installations
   - name: Create directory for dependencies
     when: ansible_user is defined
+    become: false
     ansible.builtin.file:
       path: ~{{ ansible_user }}/dependencies
       state: directory
@@ -258,10 +258,12 @@
       repo: 'https://github.com/bats-core/bats-core.git'
       dest: ~{{ ansible_user }}/dependencies/bats
       version: v1.9.0
+
   - name: Clone libnrm
     ansible.builtin.git:
       repo: 'https://github.com/anlsys/libnrm.git'
       dest: ~{{ ansible_user }}/dependencies/libnrm
+      version: feature/prometheus-exporter
   
   - name: Install bats
     ansible.builtin.shell: |
@@ -272,6 +274,72 @@
     ansible.builtin.shell: |
       cd ~{{ ansible_user }}/dependencies/libnrm
       ./autogen.sh
-      ./configure --prefix=/usr --with-geopm GEOPM_CFLAGS="-I/usr/include" GEOPM_LIBS="-L/usr/lib/x86_64-linux-gnu/lib -lgeopmd" CFLAGS="-std=c17 -Wall -Wextra -Werror -Wno-builtin-declaration-mismatch"
-      make
+      ./configure --prefix=/usr --with-python --with-geopm
+      make -j
       make install
+      
+  - name: Create systemd service unit file for nrmd
+    ansible.builtin.copy:
+      dest: /etc/systemd/system/nrmd.service
+      content: |
+        [Unit]
+        Description=NRMD Service
+
+        [Service]
+        Type=simple
+        ExecStart=/usr/bin/nrmd
+        Restart=always
+        User=cc
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: Create systemd service unit file for nrm-geopm
+    ansible.builtin.copy:
+      dest: /etc/systemd/system/nrm-geopm.service
+      content: |
+        [Unit]
+        Description=NRMD Service
+
+        [Service]
+        Type=simple
+        
+        ExecStart=/usr/bin/nrm-geopm -e CPU_ENERGY
+        Restart=always
+        User=cc
+        StandardOutput=journal
+        StandardError=journal
+
+        [Install]
+        WantedBy=multi-user.target
+
+  - name: Reload systemd to recognize the new service
+    ansible.builtin.command: systemctl daemon-reload
+
+  - name: Start nrmd service
+    ansible.builtin.systemd:
+      name: nrmd
+      state: started
+
+  - name: Provision geopm
+    ansible.builtin.shell: |
+      sudo modprobe msr
+      sudo systemctl restart geopm.service 
+      geopmaccess -a > /tmp/allaccess
+      geopmaccess -w -c < /tmp/allaccess
+      geopmaccess -w < /tmp/allaccess
+
+
+  - name: Start nrmd service
+    ansible.builtin.systemd:
+      name: nrm-geopm
+      state: started
+
+  - name: Configure PYTHONPATH for user
+    ansible.builtin.lineinfile:
+      path: ~{{ ansible_user }}/.bashrc
+      regexp: 'export PYTHONPATH=/usr/lib/python3.10/site-packages:$PYTHONPATH'
+      line: 'export PYTHONPATH=/usr/lib/python3.10/site-packages:$PYTHONPATH # Added by ansible'
+      state: present
