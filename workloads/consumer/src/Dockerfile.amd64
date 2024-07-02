@@ -11,9 +11,56 @@ COPY requirements.txt /app
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt
 
+RUN apt-get update && \
+    apt-get install -y \
+    git \
+    check \
+    autoconf \
+    automake \
+    libtool \
+    build-essential \
+    pkg-config \
+    gcc \
+    make \
+    libzmq3-dev \
+    libzmq5 \
+    libczmq-dev \
+    libczmq4 \
+    libprotobuf-c-dev \
+    protobuf-c-compiler \
+    libjansson-dev \
+    libjansson4 \
+    libpapi-dev \ 
+    mpich \
+    libomp-dev \
+    libomp5 \
+    && apt-get clean
+
+RUN wget https://download.open-mpi.org/release/hwloc/v2.5/hwloc-2.5.0.tar.bz2
+RUN tar -xvf hwloc-2.5.0
+RUN ./configure
+RUN make
+RUN make install
+
+
+RUN git clone https://github.com/bats-core/bats-core.git
+RUN cd bats-core && ./install.sh /usr
+RUN rm -rf bats-core
+RUN bats --version
+
+RUN git clone https://github.com/anlsys/libnrm.git
+WORKDIR /app/libnrm
+RUN ./autogen.sh
+RUN ./configure --prefix=/usr --with-python
+RUN make
+RUN make install
+
+
 COPY inferPtychoNN.py inferPtychoNNImageProcessor.py helper.py /app/
 ENV PYTHONPATH "${PYTHONPATH}:/app"
 EXPOSE 9100
+
+
 
 ## TODO: we need to massage this here to use nrm client to publish metrics to nrm.
 ##       the code comes from the Ansible script

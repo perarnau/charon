@@ -1,0 +1,74 @@
+# Use the official Ubuntu image as a base
+FROM ubuntu:latest
+
+# Set environment variables to avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+
+RUN apt-get update && \
+    apt-get install -y \
+    git \
+    check \
+    autoconf \
+    automake \
+    libtool \
+    build-essential \
+    pkg-config \
+    gcc \
+    make \
+    libzmq3-dev \
+    libzmq5 \
+    libczmq-dev \
+    libczmq4 \
+    libprotobuf-c-dev \
+    protobuf-c-compiler \
+    libjansson-dev \
+    libjansson4 \
+    libhwloc-dev \
+    libhwloc-common \
+    libhwloc-contrib-plugins \
+    libhwloc-dev \
+    libhwloc-doc \
+    libhwloc-plugins \
+    libhwloc15 \
+    libpapi-dev \
+    mpich \
+    libomp-dev \
+    libomp5 \
+    python3 \
+    python3-pip \
+    iputils-ping \
+    libblas-dev \
+    && apt-get clean
+
+
+WORKDIR /app
+RUN git clone https://github.com/bats-core/bats-core.git
+RUN cd bats-core && ./install.sh /usr
+RUN rm -rf bats-core
+RUN bats --version
+
+RUN git clone https://github.com/anlsys/libnrm.git
+WORKDIR /app/libnrm
+RUN git checkout feature/prometheus-exporter
+RUN ./autogen.sh
+RUN ./configure --prefix=/usr --with-python
+RUN make
+RUN make install
+
+WORKDIR /app
+RUN git clone https://github.com/anlsys/nrm-benchmarks.git
+WORKDIR /app/nrm-benchmarks
+RUN ./autogen.sh
+RUN ./configure
+RUN make
+RUN make install
+
+
+WORKDIR /app
+
+#COPY ./all_experiments.py /app/first_run.py
+EXPOSE 9100
+
+CMD ["ping", "8.8.8.8"]
+                           
