@@ -1,0 +1,54 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nrm
+  name: nrm
+spec:
+  selector:
+    matchLabels:
+      app: nrm
+  template:
+    metadata:
+      labels:
+        app: nrm
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      containers:
+        - name: nrm
+          image: gemblerz/nrm:0.1.0
+          imagePullPolicy: Always
+          command: ["nrmd"]
+          args:
+          - --uri
+          - "tcp://0.0.0.0"
+          - --verbose
+          ports:
+          - name: pub
+            containerPort: 2345
+            hostPort: 2345
+          - name: rpc
+            containerPort: 3456
+            hostPort: 3456
+          resources:
+            requests:
+              cpu: 250m
+              memory: 50Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nrm
+spec:
+  ports:
+    - name: pub
+      port: 2345
+      targetPort: pub
+    - name: rpc
+      port: 3456
+      targetPort: rpc
+  selector:
+    app: nrm
+  type: ClusterIP
