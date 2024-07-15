@@ -1,0 +1,133 @@
+import argparse
+import logging
+import time
+from multiprocessing import Process, Queue
+
+from kubernetes import client, config, watch
+import nrm
+
+
+def pull_pods(args, out_queue):
+    logging.info("Pod worker starts...")
+    config.load_incluster_config()
+    v1 = client.CoreV1Api()
+    w = watch.Watch()
+    for event in w.stream(
+        v1.list_namespaced_pod,
+        args.namespace,
+        timeout_seconds=3600):
+        # _request_timeout closes the connection in the undesirable way
+        # as we want to keep events coming. We should not set the value.
+        # _request_timeout=60):
+        event_type = event["type"]
+        message = {
+            "name": event["object"].metadata.name
+        } 
+        logging.debug(f'Pod worker Event:{event_type}, {message}')
+        out_queue.put((event_type, message))
+    logging.error("Pod worker closed")
+
+
+def parse_cpu(cpu_metric):
+    value = int(cpu_metric[:-1])
+    unit = cpu_metric[-1]
+
+    if unit == 'n':
+        return value / 1e-6
+
+
+def parse_memory(memory_metric):
+    value = int(memory_metric[:-2])
+    unit = memory_metric[-2:]
+
+    if unit == "Ki":
+        return value * 1024
+
+
+def pull_pod_metrics(args, out_queue):
+    logging.info("Pod metric worker starts...")
+    config.load_incluster_config()
+    cust = client.CustomObjectsApi()
+    event_type = "UPDATED"
+
+    while True:
+        pod_metrics = cust.list_namespaced_custom_object(
+            'metrics.k8s.io', 'v1beta1', args.namespace, 'pods')
+        for pod_metric in pod_metrics["items"]:
+            message = {
+                "name": pod_metric["metadata"]["name"],
+                "cpu": parse_cpu(pod_metric["containers"][0]["usage"]["cpu"]),
+                "memory": parse_memory(pod_metric["containers"][0]["usage"]["memory"]),
+            }
+            logging.debug(f'Pod metric worker Event:{event_type}, {message}')
+            out_queue.put((event_type, message))
+        time.sleep(args.interval)
+
+
+def main(args):
+    logging.info("configurations")
+    logging.info(f'interval: {args.interval}')
+    logging.info(f'namespace to watch: {args.namespace}')
+    queue = Queue()
+    pod_worker = Process(target=pull_pods, args=(args, queue))
+    pod_metric_worker = Process(target=pull_pod_metrics, args=(args, queue))
+    c = nrm.Client(args.nrm_uri)
+    allscope = c.list_scopes()[0]
+    db = dict()
+    try:
+        pod_worker.start()
+        pod_metric_worker.start()
+        while True:
+            try:
+                message_type, message = queue.get(block=False)
+            except Queue: 
+            if message_type is not None:
+                logging.debug(f'Received: {message}')
+                cpu_sensor = f'{message["name"]}.cpuutil'
+                memory_sensor = f'{message["name"]}.membytes'
+                if message_type == "UPDATED":
+                    now = nrm.nrm_time_fromns(time.time_ns())
+                    c.send_event(now, cpu_sensor, allscope, message["cpu"])
+                    c.send_event(now, memory_sensor, allscope, message["memory"])
+                elif message_type == "ADDED":
+                    c.add_sensor(cpu_sensor)
+                    logging.info(f'Sensor {cpu_sensor} added')
+                    c.add_sensor(memory_sensor)
+                    logging.info(f'Sensor {memory_sensor} added')
+                elif message_type == "DELETED":
+                    # do we need to delete the sensor in NRM?
+                    logging.info(f'Sensor {message["name"]} deleted')
+            time.sleep(args.interval)
+    except Exception as ex:
+        logging.error(f'{str(ex)}')
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # we need to clean up workers
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--debug", dest="debug",
+        action="store_true",
+        help="Enable debugging")
+    parser.add_argument('-u', '--nrm-uri',
+        action='store', dest='nrm_uri', type=str,
+        default="tcp://nrm", help='URI to NRM daemon')
+    parser.add_argument('--interval',
+        action='store', dest='interval', type=int,
+        default=1, help='Interval in seconds for publishing')
+    parser.add_argument('-n', '--namespace',
+        action='store', dest='namespace', type=str,
+        default="workload", help='Interval in seconds for publishing')
+    args = parser.parse_args()
+
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        datefmt='%Y/%m/%d %H:%M:%S')
+
+    exit(main(args))
