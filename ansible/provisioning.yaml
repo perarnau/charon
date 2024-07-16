@@ -32,14 +32,11 @@
     ansible.builtin.pip:
       name: pip
       state: latest
-
-      #- name: check pip version
-      #ansible.builtin.pip:
-      #name: PyYAML
-      #state: absent
-
+  
   - name: Install Python packages
-    ansible.builtin.shell: pip3 install kubernetes --user
+    ansible.builtin.pip:
+      name: kubernetes
+      state: present
 
   # TODO: we may want to skip this if already exists
   - name: Get k3s installed version
@@ -135,67 +132,6 @@
       chart_ref: grafana/mimir-distributed
       chart_version: 5.2.1
 
-  # - name: Add the geopm PPA repository
-  #   apt_repository:
-  #     repo: 'ppa:geopm/release'
-  #     state: present
-  #     codename: jammy
-  
-  - name: Add the nvidia PPA repository
-    apt_repository:
-      repo: 'ppa:graphics-drivers/ppa'
-      state: present
-
-  - name: Update the apt package list
-    ansible.builtin.apt:
-      update_cache: yes
-
-  - name: Update the pip list
-    ansible.builtin.pip:
-      name:
-        - numpy
-        - matplotlib
-        - pandas
-
-  - name: Install apt dependencies
-    ansible.builtin.apt:
-      name:
-        - libc6
-        # - libnvidia-compute-535
-        - libstdc++6
-        # - liburing2
-        - python3-cffi
-        # - dasbus
-        - python3-psutil
-        - python3-setuptools
-        - gcc
-        - make
-        - autoconf
-        - automake
-        - libtool
-        - pkg-config
-        - libzmq3-dev
-        - libzmq5
-        - libczmq-dev
-        - libczmq4
-        - libprotobuf-c-dev
-        - protobuf-c-compiler
-        - libjansson-dev
-        - libjansson4
-        - check
-        - libhwloc-dev
-        - libpapi-dev
-        - mpich
-        - libomp-dev
-        - libomp5
-        # - geopm-service
-        # - libgeopmd-dev
-        # - libgeopmd2
-        # - python3-geopmdpy
-        - libblas-dev
-      state: present
-      update_cache: yes
-
   - name: Check if Nvidia GPU is available
     ansible.builtin.command: nvidia-smi --list-gpus
     register: list_of_nvidia_gpus
@@ -278,6 +214,45 @@
       owner: "{{ ansible_user }}"
       mode: "u=rwx,g=rx,o="
 
+  - name: Add the geopm PPA repository
+    apt_repository:
+      repo: 'ppa:geopm/release'
+      state: present
+
+  - name: Update the apt package list
+    ansible.builtin.apt:
+      update_cache: yes
+
+  - name: Install apt dependencies
+    ansible.builtin.apt:
+      name:
+        - gcc
+        - make
+        - autoconf
+        - automake
+        - libtool
+        - pkg-config
+        - libzmq3-dev
+        - libzmq5
+        - libczmq-dev
+        - libczmq4
+        - libprotobuf-c-dev
+        - protobuf-c-compiler
+        - libjansson-dev
+        - libjansson4
+        - check
+        - libhwloc-dev
+        - libpapi-dev
+        - mpich
+        - libomp-dev
+        - libomp5
+        - geopm-service
+        - libgeopmd-dev
+        - libgeopmd2
+        - python3-geopmdpy
+      state: present
+      update_cache: yes
+
   - name: Clone bats
     ansible.builtin.git:
       repo: 'https://github.com/bats-core/bats-core.git'
@@ -299,7 +274,7 @@
     ansible.builtin.shell: |
       cd ~{{ ansible_user }}/dependencies/libnrm
       ./autogen.sh
-      ./configure --prefix=/usr --with-python
+      ./configure --prefix=/usr --with-python --with-geopm
       make -j
       make install
       
@@ -321,24 +296,24 @@
         [Install]
         WantedBy=multi-user.target
 
-  # - name: Create systemd service unit file for nrm-geopm
-  #   ansible.builtin.copy:
-  #     dest: /etc/systemd/system/nrm-geopm.service
-  #     content: |
-  #       [Unit]
-  #       Description=NRMD Service
+  - name: Create systemd service unit file for nrm-geopm
+    ansible.builtin.copy:
+      dest: /etc/systemd/system/nrm-geopm.service
+      content: |
+        [Unit]
+        Description=NRMD Service
 
-  #       [Service]
-  #       Type=simple
+        [Service]
+        Type=simple
         
-  #       ExecStart=/usr/bin/nrm-geopm -e CPU_ENERGY
-  #       Restart=always
-  #       User=cc
-  #       StandardOutput=journal
-  #       StandardError=journal
+        ExecStart=/usr/bin/nrm-geopm -e CPU_ENERGY
+        Restart=always
+        User=cc
+        StandardOutput=journal
+        StandardError=journal
 
-  #       [Install]
-  #       WantedBy=multi-user.target
+        [Install]
+        WantedBy=multi-user.target
 
   - name: Reload systemd to recognize the new service
     ansible.builtin.command: systemctl daemon-reload
@@ -348,22 +323,19 @@
       name: nrmd
       state: started
 
-  # - name: Provision geopm
-  #   ansible.builtin.shell: |
-  #     sudo modprobe msr
-  #     sudo systemctl restart geopm.service 
-  #     echo "CPU_POWER_LIMIT_CONTROL" > /tmp/ouraccess
-  #     sudo geopmaccess -a > /tmp/allaccess
-  #     sudo geopmaccess -w -c < /tmp/ouraccess
-  #     sudo geopmaccess -w < /tmp/allaccess
-  #     sudo systemctl restart nrmd.service
-  #     sudo systemctl restart geopm.service
+  - name: Provision geopm
+    ansible.builtin.shell: |
+      sudo modprobe msr
+      sudo systemctl restart geopm.service 
+      geopmaccess -a > /tmp/allaccess
+      geopmaccess -w -c < /tmp/allaccess
+      geopmaccess -w < /tmp/allaccess
 
 
-  # - name: Start geopm service
-  #   ansible.builtin.systemd:
-  #     name: nrm-geopm
-  #     state: started
+  - name: Start nrmd service
+    ansible.builtin.systemd:
+      name: nrm-geopm
+      state: started
 
   - name: Configure PYTHONPATH for user
     ansible.builtin.lineinfile:
@@ -371,17 +343,3 @@
       regexp: 'export PYTHONPATH=/usr/lib/python3.10/site-packages:$PYTHONPATH'
       line: 'export PYTHONPATH=/usr/lib/python3.10/site-packages:$PYTHONPATH # Added by ansible'
       state: present
-
-  - name: Clone nrm-benchmarks
-    ansible.builtin.git:
-      repo: 'https://github.com/anlsys/nrm-benchmarks.git'
-      dest: ~{{ ansible_user }}/dependencies/nrm-benchmarks
-
-  - name: Install nrm-benchmarks
-    ansible.builtin.shell: |
-      cd ~{{ ansible_user }}/dependencies/nrm-benchmarks
-      ./autogen.sh
-      ./configure
-      make -j
-      make install
-  
