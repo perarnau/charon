@@ -11,18 +11,19 @@ spec:
       labels:
         app: consumer
     spec:
+      runtimeClassName: nvidia
       containers:
       - name: consumer
-        image: gemblerz/ptychonn:0.1.0
+        image: gemblerz/ptychonn:0.1.4
         ports:
         - containerPort: 9100
         env:
         # TODO: we need to test this to make sure the pod can see the host's NRM daemon
-        - name: NRM_URI
+        - name: NRM_UPSTREAM_URI
           value: "tcp://nrm.charon"
-        - name: NRM_RPC_PORT
+        - name: NRM_UPSTREAM_RPC_PORT
           value: 3456
-        - name: NRM_PUB_PORT
+        - name: NRM_UPSTREAM_PUB_PORT
           value: 2345
         command: ["pvapy-hpc-consumer"]
         args:

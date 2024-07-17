@@ -18,9 +18,9 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def __nrm_init__(self):
         self.nrmclient = nrm.Client(
-            uri=os.getenv("NRM_URI", "tcp://localhost"),
-            pub_port=os.getenv("NRM_PUB_PORT", 2345),
-            rpc_port=os.getenv("NRM_RPC_PORT", 3456))
+            uri=nrm.upstream_uri,
+            pub_port=nrm.upstream_pub_port,
+            rpc_port=nrm.upstream_rpc_port)
         
     def __nrm_add_sensors__(self):
         self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesprocessed.total')

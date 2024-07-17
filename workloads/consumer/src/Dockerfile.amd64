@@ -69,11 +69,11 @@ ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3.8/site-packages:/usr/lib/python3.
 WORKDIR /app
 
 ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychoNN_8_128_fp16.trt /app/model_128.trt
-# These are compiled on TRT 2301 and do not work with TRT 2305
+# TRT models compatible with TRT compute 75
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
-ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt2305.trt /app/model_512_fp32.trt
-ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt2305.trt /app/model_512_fp16.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt75.trt /app/model_512_fp32.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt75.trt /app/model_512_fp16.trt
 ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/diff_scan_810.npy /app/scan.npy
 
 COPY requirements.txt /app
