@@ -14,8 +14,16 @@
 
   tasks:
   # NOTE: this is only for Chameleon machines as their OS images block ingress/egress by default
-  - name: Add Kubernetes in the firewall
+  - name: Add Kubernetes Pod and Service IPs in the firewall
     ansible.builtin.command: firewall-cmd --zone=trusted --add-source "{{ k3s_cluster_cidr }}" --add-source "{{ k3s_service_cidr }}"
+    ignore_errors: true
+
+  - name: Add Kubernetes api and metrics server ports in the firewall
+    ansible.builtin.command: firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp
+    ignore_errors: true
+
+  - name: Reload firewall for newly added rules
+    ansible.builtin.command: firewall-cmd --reload
     ignore_errors: true
       
   # TODO: we would want to check if the host OS is Debian/Ubuntu
