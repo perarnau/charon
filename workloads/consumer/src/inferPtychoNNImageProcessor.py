@@ -17,30 +17,32 @@ import nrm
 class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def __nrm_init__(self):
-        self.nrmclient = nrm.Client(nrm.upstream_uri,
-                                    nrm.upstream_rpc_port,
-                                    nrm.upstream_pub_port)
+        self.nrmclient = nrm.Client(
+            uri=os.getenv("NRM_URI", "tcp://localhost"),
+            pub_port=os.getenv("NRM_PUB_PORT", 2345),
+            rpc_port=os.getenv("NRM_RPC_PORT", 3456))
+        
+    def __nrm_add_sensors__(self):
+        self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesprocessed.total')
+        self.nrm_batches = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.batchesprocessed.total')
+        self.nrm_infer = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.inferTime.total')
+        self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesqueued')
+        self.nrm_allscope = self.nrmclient.list_scopes()[0].ptr
 
-        self.nrm_frames = self.nrmclient.add_sensor("ptychonn.framesprocessed")
-        self.nrm_batches = self.nrmclient.add_sensor("ptychonn.batchesprocessed")
-        self.nrm_infer = self.nrmclient.add_sensor("ptychonn.inferTime")
-        self.nrm_queued = self.nrmclient.add_sensor("ptychonn.framesqueued")
-        self.nrm_allscope = self.nrmclient.list_scopes()[0]
-
-    def __instrumentation_framesprocessed(self, bsz):
+    def __instrumentation_framesprocessed(self, total, delta):
         self.nrmclient.send_event(self.nrmclient.now(), self.nrm_frames,
-                                  self.nrm_allscope, bsz)
-        self.promnFramesProcessed.labels(self.processorId).inc(bsz)
+                                  self.nrm_allscope, total)
+        self.promnFramesProcessed.labels(self.processorId).inc(delta)
 
-    def __instrumentation_batchesprocessed(self, b):
+    def __instrumentation_batchesprocessed(self, total, delta):
         self.nrmclient.send_event(self.nrmclient.now(), self.nrm_batches,
-                                  self.nrm_allscope, b)
-        self.promnBatchesProcessed.labels(self.processorId).inc(b)
+                                  self.nrm_allscope, total)
+        self.promnBatchesProcessed.labels(self.processorId).inc(delta)
 
-    def __instrumentation_infertime(self, t):
+    def __instrumentation_infertime(self, total, delta):
         self.nrmclient.send_event(self.nrmclient.now(), self.nrm_infer,
-                                  self.nrm_allscope, t)
-        self.prominferTime.labels(self.processorId).inc(t)
+                                  self.nrm_allscope, total)
+        self.prominferTime.labels(self.processorId).inc(delta)
 
     def __instrumentation_queued(self, f):
         self.nrmclient.send_event(self.nrmclient.now(), self.nrm_queued,
@@ -55,8 +57,10 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nFramesProcessed = 0
         self.nBatchesProcessed = 0
         self.inferTime = 0
+        self.logger.info(f'Processor ID: {self.processorId}')
 
-        __nrm_init__()
+        self.logger.info("Initializing NRM client...")
+        self.__nrm_init__()
 
         self.promnFramesProcessed = Counter(
             "pvapy_frame_processed",
@@ -154,11 +158,11 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 self.inferEngine.batch_infer(nx, ny, self.output_x, self.output_y, attr)
                 t1 = time.time()
                 self.nBatchesProcessed += 1
-                self.__instrumentation_batchesprocessed(1)
+                self.__instrumentation_batchesprocessed(self.nBatchesProcessed, 1)
                 self.nFramesProcessed += bsz
-                self.__instrumentation_frameprocessed(bsz)
+                self.__instrumentation_framesprocessed(self.nFramesProcessed, bsz)
                 self.inferTime += t1-t0
-                self.__instrumentation_infertime(t1-t0)
+                self.__instrumentation_infertime(self.inferTime, t1-t0)
 
         try:
             self.logger.debug(f'Stopping infer engine')
@@ -169,6 +173,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def start(self):
         self.inferThread = threading.Thread(target=self.inferWorker)
+        self.__nrm_add_sensors__()
         self.inferThread.start()
 
     def stop(self):
@@ -252,7 +257,8 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
 
     # Retrieve statistics for user processor
     def getStats(self):
-        stat = self.getMetrics()
+        # stat = self.getMetrics()
+        stat = {}
         inferRate = 0
         frameProcessingRate = 0
         if self.nBatchesProcessed  > 0:

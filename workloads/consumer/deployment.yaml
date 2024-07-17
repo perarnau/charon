@@ -13,15 +13,13 @@ spec:
     spec:
       containers:
       - name: consumer
-        image: classicblue/ptychonn:0.5.4-ml-amd64
+        image: gemblerz/ptychonn:0.1.0
         ports:
         - containerPort: 9100
         env:
         # TODO: we need to test this to make sure the pod can see the host's NRM daemon
-        - name: NRM_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.hostIP
+        - name: NRM_URI
+          value: "tcp://nrm.charon"
         - name: NRM_RPC_PORT
           value: 3456
         - name: NRM_PUB_PORT

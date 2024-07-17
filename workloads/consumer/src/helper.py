@@ -3,13 +3,15 @@ import tensorrt as trt
 import logging
 
 
-def engine_build_from_onnx(onnx_mdl):
+def engine_build_from_onnx(onnx_mdl, ft16=False):
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
     TRT_LOGGER = trt.Logger(trt.Logger.ERROR)
     builder = trt.Builder(TRT_LOGGER)
     config  = builder.create_builder_config()
-    # config.set_flag(trt.BuilderFlag.FP16)
-    config.set_flag(trt.BuilderFlag.TF32)
+    if ft16:
+        config.set_flag(trt.BuilderFlag.FP16)
+    else:
+        config.set_flag(trt.BuilderFlag.TF32)
     config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
 
     network = builder.create_network(EXPLICIT_BATCH)
@@ -23,6 +25,17 @@ def engine_build_from_onnx(onnx_mdl):
         return None
 
     return builder.build_engine(network, config)
+
+
+def create_engine_from_onnx(onnx_mdl, path="out.trt", ft16=False):
+    out = engine_build_from_onnx(onnx_mdl, ft16)
+    if out is None:
+        return None
+
+    with open(path, mode='wb') as f:
+        f.write(bytearray(out.serialize()))
+        print("generating file done!")
+
 
 def mem_allocation(engine):
     # Determine dimensions and create page-locked memory buffers (i.e. won't be swapped to disk) to hold host inputs/outputs.
