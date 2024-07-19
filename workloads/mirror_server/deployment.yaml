@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: mirror-server
-        image: classicblue/ptychonn:0.5.4
+        image: gemblerz/ptychonn:0.1.4
         command: ["pvapy-mirror-server"]
         args:
         - --channel-map

@@ -18,7 +18,7 @@ spec:
           restartPolicy: NotRequired
         - resourceName: memory
           restartPolicy: NotRequired
-        image: classicblue/ptychonn:0.5.4
+        image: gemblerz/ptychonn:0.1.4
         command: ["pvapy-ad-sim-server"]
         args:
         - --channel-name
