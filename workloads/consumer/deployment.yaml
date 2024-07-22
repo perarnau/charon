@@ -14,7 +14,7 @@ spec:
       runtimeClassName: nvidia
       containers:
       - name: consumer
-        image: gemblerz/ptychonn:0.1.4
+        image: gemblerz/ptychonn:0.2.0
         ports:
         - containerPort: 9100
         env:
