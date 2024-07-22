@@ -29,23 +29,26 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesqueued')
         self.nrm_allscope = self.nrmclient.list_scopes()[0].ptr
 
+    def __nrm_now__(self):
+        return nrm.nrm_time_fromns(time.time_ns())
+
     def __instrumentation_framesprocessed(self, total, delta):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_frames,
+        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_frames,
                                   self.nrm_allscope, total)
         self.promnFramesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_batchesprocessed(self, total, delta):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_batches,
+        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_batches,
                                   self.nrm_allscope, total)
         self.promnBatchesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_infertime(self, total, delta):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_infer,
+        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
                                   self.nrm_allscope, total)
         self.prominferTime.labels(self.processorId).inc(delta)
 
     def __instrumentation_queued(self, f):
-        self.nrmclient.send_event(self.nrmclient.now(), self.nrm_queued,
+        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_queued,
                                   self.nrm_allscope, f)
         self.promnFramesQueued.labels(self.processorId).set(f)
 
@@ -130,7 +133,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 break
             try:
                 frm_id, in_frame, ny, nx, attr = self.tq_frame_q.get(block=True, timeout=waitTime)
-                self.__instrumentation_queued(self.tq_frame_q.size())
+                self.__instrumentation_queued(self.tq_frame_q.qsize())
             except queue.Empty:
                 continue
             except KeyboardInterrupt:
@@ -191,7 +194,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']
         self.tq_frame_q.put((frameId, image, ny, nx, attributes))
-        self.__instrumentation_queued(self.tq_frame_q.size())
+        self.__instrumentation_queued(self.tq_frame_q.qsize())
         return pvObject
 
     def resetStats(self):
