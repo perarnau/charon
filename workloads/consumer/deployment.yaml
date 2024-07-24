@@ -10,11 +10,13 @@ spec:
     metadata:
       labels:
         app: consumer
+        role: workload
     spec:
       runtimeClassName: nvidia
       containers:
       - name: consumer
         image: gemblerz/ptychonn:0.2.0
+        imagePullPolicy: Always
         ports:
         - containerPort: 9100
         env:
@@ -22,15 +24,18 @@ spec:
         - name: NRM_UPSTREAM_URI
           value: "tcp://nrm.charon"
         - name: NRM_UPSTREAM_RPC_PORT
-          value: 3456
+          value: "3456"
         - name: NRM_UPSTREAM_PUB_PORT
-          value: 2345
+          value: "2345"
+        # command: ["sleep", "infinity"]
         command: ["pvapy-hpc-consumer"]
         args:
+        - -ll
+        - "error"
         - --input-channel
         - "pvapy:image"
         - --consumer-id
-        - "1"
+        - "2"
         - --control-channel
         - "processor:*:control"
         - --status-channel

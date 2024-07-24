@@ -10,11 +10,14 @@ spec:
     metadata:
       labels:
         app: mirror-server
+        role: workload
     spec:
       containers:
       - name: mirror-server
-        image: gemblerz/ptychonn:0.2.0
+        image: gemblerz/ptychonn:0.1.4
         command: ["pvapy-mirror-server"]
         args:
         - --channel-map
         - "(pvapy:image,ad:image,pva,20000)"
+        ports:
+        - containerPort: 5076

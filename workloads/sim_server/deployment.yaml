@@ -30,7 +30,7 @@ spec:
         - --datatype
         - int16
         - --frame-rate
-        - "100"
+        - "1000"
         - --runtime
         - "60"
         - --disable-curses
