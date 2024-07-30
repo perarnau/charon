@@ -1,5 +1,6 @@
 import nrm
 import time
+import uuid
 c = nrm.Client()
 sensor = c.add_sensor("test_sensor")
 scope = c.add_scope("test_scope")
@@ -12,4 +13,4 @@ while count <= iter:
     now = time.time()
     progress = str(float(count/iter))
     c.send_event(now, sensor, scope, progress)
-
+    time.sleep(1)

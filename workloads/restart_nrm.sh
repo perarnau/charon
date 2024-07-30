@@ -2,7 +2,7 @@
 
 # Delete all existing pods and deployments under workspace
 #kubectl delete deployment nrm -n charon
-kubectl delete deployment nrm-k3 -n charon
+kubectl delete deployment nrm-k3s-n charon
 
 
 # List of YAML files to apply

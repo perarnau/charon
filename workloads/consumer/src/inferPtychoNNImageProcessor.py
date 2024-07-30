@@ -10,13 +10,14 @@ import pvapy as pva
 from pvapy.hpc.adImageProcessor import AdImageProcessor
 
 from prometheus_client import start_http_server, Gauge, Counter
-
+import uuid
 import nrm
 
 
 class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def __nrm_init__(self):
+        self.processID = uuid.uuid4()
         self.nrmclient = nrm.Client(
             uri=nrm.upstream_uri,
             pub_port=nrm.upstream_pub_port,
