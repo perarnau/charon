@@ -14,29 +14,35 @@ PACKING_PATH="$PARENT_DIR/python_codes/experiment_data/k3_identification"
 # echo $PACKING_PATH
 yaml_files=()
 # Dynamically add YAML files from the sim_server directory
-for file in "$WORKLOAD_PATH/sim_server/"*; do
+for file in "$WORKLOAD_PATH/consumer/"*; do
   SUCCESS=false  
-  if [[ $file == *"pod"* && $file == *.yaml ]]; then
-    server_file=$file
-    extracted_part=${server_file#*pod_}
+  if [[ $file == *"deployment"* && $file == *.yaml ]]; then
+    consumer_file=$file
+    extracted_part=${consumer_file#*pod_}
     extracted_part=${extracted_part%.yaml}
     echo "Extracted part: $extracted_part"
     
     yaml_files=(
-      "$server_file"
+      "$consumer_file"
       "$WORKLOAD_PATH/mirror_server/deployment.yaml"
-      "$WORKLOAD_PATH/consumer/deployment.yaml"
+      "$WORKLOAD_PATH/sim_server/pod.yaml"
+      "$PARENT_DIR/ansible/kubernetes/nrm-k3s.yaml"
     )
 
     while ! $SUCCESS; do  
       # Delete all existing pods and deployments under workspace
       kubectl delete deployments --all -n workload
       kubectl delete pods --all -n workload
+      kubectl delete deployment nrm-k3s -n charon
 
       # Apply each YAML file
       for yaml_file in "${yaml_files[@]}"; do
         echo "Applying $yaml_file..."
-        kubectl apply -f "$yaml_file"
+        if [[ $yaml_file == *"nrm-k3s"* ]]; then
+          kubectl apply -f "$yaml_file" -n charon
+        else
+          kubectl apply -f "$yaml_file"
+        fi
 
         if [ $? -ne 0 ]; then
           echo "Failed to apply $yaml_file"

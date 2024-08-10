@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+spec:
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+        role: workload
+    spec:
+      containers:
+      - args:
+        - -ll
+        - error
+        - --input-channel
+        - pvapy:image
+        - --consumer-id
+        - '2'
+        - --control-channel
+        - processor:*:control
+        - --status-channel
+        - processor:*:status
+        - --output-channel
+        - processor:*:output
+        - --processor-file
+        - /app/inferPtychoNNImageProcessor.py
+        - --processor-class
+        - InferPtychoNNImageProcessor
+        - --processor-args
+        - '{"onnx_mdl": "/app/model_512_fp16.trt", "output_x": 64, "output_y": 64,
+          "net": "wan0"}'
+        - --report-period
+        - '5'
+        - --n-consumers
+        - '1'
+        - --server-queue-size
+        - '100'
+        - --monitor-queue-size
+        - '1000'
+        - --distributor-updates
+        - '8'
+        - --disable-curses
+        command:
+        - pvapy-hpc-consumer
+        env:
+        - name: NRM_UPSTREAM_URI
+          value: tcp://nrm.charon
+        - name: NRM_UPSTREAM_RPC_PORT
+          value: '3456'
+        - name: NRM_UPSTREAM_PUB_PORT
+          value: '2345'
+        image: akhileshraj/charon:0.0.1
+        imagePullPolicy: Always
+        name: consumer
+        ports:
+        - containerPort: 9100
+        resources:
+          limits:
+            cpu: 450
+          requests:
+            cpu: 450
