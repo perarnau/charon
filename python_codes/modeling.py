@@ -8,6 +8,7 @@ warnings.filterwarnings('ignore')
 
 WD = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = WD + "/experiment_data/RESULTS"
+os.makedirs(OUTPUT_DIR, exist_ok=True)  # Create OUTPUT_DIR if it doesn't exist
 # print(WD)
 SOURCE_D = WD + "/experiment_data/k3_identification/"
 root, folder, files = next(os.walk(SOURCE_D))
@@ -30,7 +31,8 @@ for fold in folders:
         # print(CWD)
         DATA[fold],_,_,_ = execute_experiment(CWD)
 
-        f_file,k_file = DATA[fold].keys()
+        f_file = [key for key in DATA[fold].keys() if "frame" in key][0]  # Filter keys to find f_file
+        k_file = [key for key in DATA[fold].keys() if "k3" in key][0]
         plot_y_order = DATA[fold][f_file].keys()
         plot_x_order = DATA[fold][k_file]['derived'].keys()
         # print(plot_x_order,plot_y_order)

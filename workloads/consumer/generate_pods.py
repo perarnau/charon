@@ -82,12 +82,12 @@ data = yaml.safe_load(original_yaml)
 # Function to update the frame rate
 def update_cpu(data, cpu):
     new_data = data.copy()
-    new_data['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = cpu
-    new_data['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = cpu
+    new_data['spec']['template']['spec']['containers'][0]['resources']['limits']['cpu'] = str(cpu) + "m"
+    new_data['spec']['template']['spec']['containers'][0]['resources']['requests']['cpu'] = str(cpu) + "m"
     return new_data
 
 # Generate 10 YAML files with different frame rates
-for i, cpu in enumerate(range(100, 1001, 25), start=1):
+for i, cpu in enumerate(range(100, 1001, 100), start=1):
     new_data = update_cpu(data, cpu)
     with open(f'{current_working_directory}/deployment_{cpu}.yaml', 'w') as file:
         yaml.dump(new_data, file)

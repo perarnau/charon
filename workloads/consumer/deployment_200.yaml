@@ -60,6 +60,6 @@ spec:
         - containerPort: 9100
         resources:
           limits:
-            cpu: 200
+            cpu: 200m
           requests:
-            cpu: 200
+            cpu: 200m

@@ -7,9 +7,7 @@ import csv
 import os
 import tarfile
 import argparse
-
-
-
+import signal
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -41,7 +39,6 @@ frames_writer.writerow(['time', 'sensor', 'value'])
 k3_file = open(f'{EXP_DIR}/k3_{args.fr}_{args.cpu}_{args.mem}_{args.date}.csv', mode='w', newline='')
 k3_writer = csv.writer(k3_file)
 k3_writer.writerow(['time', 'sensor', 'value'])
-
 stop_event_listener = False  # Flag to stop the event listener
 
 # For post processing
@@ -71,20 +68,30 @@ def cb(*args):
     timestamp = time/1e9
     # print("*********************",time)
     # print(args)
-    if "ptychonn" in sensor:
-        count = 0
-        # print(timestamp,sensor,value)
-        frames_writer.writerow([timestamp, sensor, value])
-        # print("-------------------")
-    elif "cpuutil" in sensor or "mem" in sensor:
-        # print(timestamp, sensor, value)
-        k3_writer.writerow([timestamp, sensor, value])
-    else:         
+    # print(sensor)
+    if "tick" in sensor:
         count += 1
         print(f"---------------------------------------------------------------------------------------{count}")
         if count >= 30:
             stop_event_listener = True  # Set the flag to stop the event listener
+    elif "cpuutil" in sensor or "mem" in sensor:
+        # print(timestamp, sensor, value)
+        k3_writer.writerow([timestamp, sensor, value])
+    else:
+        count = 0
+        # print(timestamp,sensor,value)
+        frames_writer.writerow([timestamp, sensor, value])
+        # print("-------------------")
 
+
+def signal_handler(sig, frame):
+    global stop_event_listener
+    stop_event_listener = True  # Set the flag to stop the event listener
+    print("Signal received, stopping the event listener.")
+
+# Register the signal handler for graceful exit
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 client.set_event_listener(cb)
 client.start_event_listener("") 
@@ -97,3 +104,7 @@ finally:
     frame_file.close()
     k3_file.close()  # Ensure k3_file is also closed
     # compress_files(args.fr)
+
+    if stop_event_listener:
+        print("Stopping the event listener and exiting.")
+        sys.exit()  # Forcefully terminate the program

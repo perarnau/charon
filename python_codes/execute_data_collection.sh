@@ -18,15 +18,15 @@ for file in "$WORKLOAD_PATH/consumer/"*; do
   SUCCESS=false  
   if [[ $file == *"deployment"* && $file == *.yaml ]]; then
     consumer_file=$file
-    extracted_part=${consumer_file#*pod_}
+    extracted_part=${consumer_file#*deployment_}
     extracted_part=${extracted_part%.yaml}
     echo "Extracted part: $extracted_part"
     
     yaml_files=(
+      "$PARENT_DIR/ansible/kubernetes/nrm-k3s.yaml"
       "$consumer_file"
       "$WORKLOAD_PATH/mirror_server/deployment.yaml"
       "$WORKLOAD_PATH/sim_server/pod.yaml"
-      "$PARENT_DIR/ansible/kubernetes/nrm-k3s.yaml"
     )
 
     while ! $SUCCESS; do  
@@ -43,6 +43,7 @@ for file in "$WORKLOAD_PATH/consumer/"*; do
         else
           kubectl apply -f "$yaml_file"
         fi
+        sleep 2
 
         if [ $? -ne 0 ]; then
           echo "Failed to apply $yaml_file"
@@ -64,9 +65,8 @@ for file in "$WORKLOAD_PATH/consumer/"*; do
         SUCCESS=true
         echo "Listing files in $PACKING_PATH..."
         ls "$PACKING_PATH"
-        compressed_file_name="compressed_iteration_$extracted_part.tar"
-        echo "Compressing files into $compressed_file_name..."
-        tar -C "$PACKING_PATH" -cvf "$compressed_file_name" *.csv
+        compressed_file_name="compressed_iteration_$extracted_part_float.tar"
+        (cd "$PACKING_PATH" && tar -cvf "../$compressed_file_name" *.csv)  # Compress files without including the packing path
         echo "Compression complete."
         rm "$PACKING_PATH"/*.csv
       else
