@@ -63,3 +63,4 @@ spec:
             cpu: 600m
           requests:
             cpu: 600m
+      runtimeClassName: nvidia

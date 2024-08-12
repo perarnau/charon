@@ -23,27 +23,42 @@ client = nrm.Client()
 # Constants
 CONTAINER_CAPACITY = 200
 K_p = 1  # Proportional gain, needs tuning
+K_d = 20
 total_active_capacity = 0
-last_frames_queued = 0
+total_frames_queued = 0
+all_sensors = {}
 
 # Function to determine the number of motors needed based on the load and proportional control
-def p_control_container(current_load):
-    error = current_load
-    control_signal = K_p * error
-    containers_needed_more = control_signal//CONTAINER_CAPACITY
-    return containers_needed_more, error, control_signal
+class Controller():
+    def __init__(self):  # Changed init to __init__
+        self.K_p = 1
+        self.K_d = 10
+        self.previous_error = 0  # Initialize previous_error as an instance variable
+
+    def PD_control(self, current_load):
+        error = current_load
+        diff_error = error - self.previous_error
+        control_signal = self.K_p * error + self.K_d * diff_error
+        # print("-----------------",error)
+        containers_needed_total = control_signal // CONTAINER_CAPACITY
+        self.previous_error = error
+        return containers_needed_total, error, control_signal
 
 def cb(*args):
-    global last_frames_queued
+    global total_frames_queued
+    global all_sensors
     try:
-        (sensor, time, scope, value) = args  # Removed scope as it's unused
+        (sensor, time, scope, value) = args 
         sensor = sensor.decode("UTF-8")
         timestamp = time / 1e9
         
         if "framesqueued" in sensor:
-            print(f"/////////////////////////////,{sensor}")
-            # print(scope.get_uuid())
-            last_frames_queued += value
+            all_sensors[sensor] = (timestamp,value)
+            current_time = timestamp
+            # Update total_frames_queued and remove old entries
+            all_sensors = {sensor: (ts, value) for sensor, (ts, value) in all_sensors.items() if current_time - ts <= 5}  # Keep only recent entries
+            total_frames_queued = sum(value for _, value in all_sensors.values())  # Sum only the value from the recent tuples
+            print(all_sensors)
     except Exception as e:  # Catch any exception
         logging.error(f"Error in callback: {e}")  # Log the error
 
@@ -56,25 +71,21 @@ client.start_event_listener("")
 control = []
 setpoint = []
 err = []
-extra_needed = 0
 change = []
 previous_frames_queued = 0
 container_count = 1
-for t in range(0,100):
+controller = Controller()
+for t in range(0,200):
     time.sleep(1)
 # if last_frames_queued != 0:
     if t % 5 == 0:
-        current_fpr = last_frames_queued - previous_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
-        extra_needed, error, control_signal = p_control_container(current_fpr)
-        previous_frames_queued = last_frames_queued
-        last_frames_queued = 0
-        # print("Motor needed:", motors_needed)
-        container_count += extra_needed
-        print("-----",extra_needed,container_count)
-        # if int(container_count) > 0:
-            # process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
+        current_fpr = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
+        total_needed, error, control_signal = controller.PD_control(current_fpr)
+        container_count = total_needed
+        print("-----",container_count)
+        if int(container_count) > 0:
+            process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
         setpoint.append(current_fpr)
-        control.append(extra_needed)
         err.append(error//CONTAINER_CAPACITY)
 
 fig,axs = plt.subplots(3,1)

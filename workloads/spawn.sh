@@ -8,7 +8,7 @@ kubectl delete pods --all -n workload
 # List of YAML files to apply
 yaml_files=(
   # "./sim_server/pod.yaml"
-  "./consumer/deployment_100.yaml"
+  "./consumer/deployment_1000.yaml"
   "./mirror_server/deployment.yaml"
   "./sim_server/pod.yaml"
 
@@ -23,7 +23,7 @@ for yaml_file in "${yaml_files[@]}"; do
     echo "Failed to apply $yaml_file"
     exit 1
   fi
-  sleep 1
+  sleep 5
 done
 
 echo "All YAML files have been successfully applied."

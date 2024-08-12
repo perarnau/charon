@@ -20,7 +20,7 @@ spec:
         app: consumer
         role: workload
     spec:
-      # runtimeClassName: nvidia
+      runtimeClassName: nvidia
       containers:
       - name: consumer
         image: akhileshraj/charon:0.0.1
