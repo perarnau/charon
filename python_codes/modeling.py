@@ -47,7 +47,7 @@ for fold in folders:
             for k_key, k_avg in k_averages:
                 axs[y_index_map[f_key], x_index_map[k_key]-4].scatter(k_avg.iloc[0], f_avg, label=f_key, color='k')  # Use mapped indices
                 axs[y_index_map[f_key], x_index_map[k_key]-4].set_xlabel(k_key[k_key.find("consumer")+9:k_key.find("data")])  # Label x-axis
-                axs[y_index_map[f_key], x_index_map[k_key]-4].set_ylabel(f_key[11:]) 
+                axs[y_index_map[f_key], x_index_map[k_key]-4].set_ylabel(f_key) 
                 # axs[y_index_map[f_key], x_index_map[k_key]].legend()  # Show legend for the plot
         
         

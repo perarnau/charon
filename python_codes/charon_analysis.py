@@ -12,6 +12,19 @@ import re
 import time
 import re
 
+exp_type = 'k3_identification' 
+
+warnings.filterwarnings('ignore')
+current_working_directory = os.path.dirname(os.path.abspath(__file__))
+experiment_dir = f'{current_working_directory}/experiment_data/{exp_type}/'
+
+OUTPUT_DIR = f'{current_working_directory}/experiment_data/RESULTS'
+if os.path.exists(OUTPUT_DIR):
+    print("Directories exist")
+else:
+    os.makedirs(OUTPUT_DIR)
+    print("Directory '%s' created")
+
 def find_all_dots_and_dashes(input_string):
     # Find all positions of '.' and '-' in the input string
     matches = re.finditer(r'[.-]', input_string)
@@ -129,14 +142,14 @@ def execute_experiment(experiment_dir):
         
 
         # Process the frames at these time points
-        post_processed = [sensor_data[f_file]['derived'][ele].iloc[i]['value'] - sensor_data[f_file]['derived'][ele].iloc[i-1]['value'] for i in range(len(sensor_data[f_file]['derived'][ele].time[1:]))] # change it to closest indices for a fair comparison
+        post_processed = [0] + [(sensor_data[f_file]['derived'][ele].iloc[i]['value'] - sensor_data[f_file]['derived'][ele].iloc[i-1]['value'])/(sensor_data[f_file]['derived'][ele].iloc[i]['time']-sensor_data[f_file]['derived'][ele].iloc[i-1]['time']) for i in range(1, len(sensor_data[f_file]['derived'][ele].time))]  # Initialize with zero
         cum_data = sensor_data[f_file]['derived'][ele]['value']
         # Determine subplot indices
         
         label_name = ele
         row = ax_frame_index // 2
         col = ax_frame_index % 2
-        axs_frame[row, col].plot(sensor_data[f_file]['derived'][ele].elapsed_time[1:], post_processed, label=ele)
+        axs_frame[row, col].plot(sensor_data[f_file]['derived'][ele].elapsed_time, post_processed, label=ele)
         axs_frame[row, col].set_xlabel('Elapsed Time [s]')
         axs_frame[row, col].set_ylabel(f'{label_name}')
         # axs_frame[row, col].set_title(identifier)  # Set title as identifier
@@ -170,27 +183,17 @@ def execute_experiment(experiment_dir):
     # Set titles for the figures
     fig_frame.suptitle(f'Progress_fr_{identifier}')
     fig_k3.suptitle(f'Resource Allocation_fr_{identifier}')
+    fig_frame.savefig(os.path.join(OUTPUT_DIR, f'fig_frame_{identifier}.png'))
+    fig_k3.savefig(os.path.join(OUTPUT_DIR, f'fig_k3_{identifier}.png'))
     return sensor_data, fig_frame, fig_k3, identifier
 
 
 if __name__ == '__main__':
-    exp_type = 'k3_identification' 
-
-    warnings.filterwarnings('ignore')
-    current_working_directory = os.path.dirname(os.path.abspath(__file__))
-    experiment_dir = f'{current_working_directory}/experiment_data/{exp_type}/'
-
-    OUTPUT_DIR = f'{current_working_directory}/experiment_data/RESULTS'
-    if os.path.exists(OUTPUT_DIR):
-        print("Directories exist")
-    else:
-        os.makedirs(OUTPUT_DIR)
-        print("Directory '%s' created") 
+  
 
     os.chdir(experiment_dir)
     sensor_data, fig_frame, fig_k3, identifier = execute_experiment(current_working_directory)
 
-    fig_frame.savefig(os.path.join(OUTPUT_DIR, f'fig_frame_{identifier}.png'))
-    fig_k3.savefig(os.path.join(OUTPUT_DIR, f'fig_k3_{identifier}.png'))
+
 
     # plt.show()  # Optionally display the figures
