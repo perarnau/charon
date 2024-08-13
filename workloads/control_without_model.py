@@ -32,14 +32,14 @@ all_sensors = {}
 class Controller():
     def __init__(self):  # Changed init to __init__
         self.K_p = 1
-        self.K_d = 10
+        self.K_d = 5
         self.previous_error = 0  # Initialize previous_error as an instance variable
 
     def PD_control(self, current_load):
         error = current_load
         diff_error = error - self.previous_error
         control_signal = self.K_p * error + self.K_d * diff_error
-        # print("-----------------",error)
+        print("-----------------",error)
         containers_needed_total = control_signal // CONTAINER_CAPACITY
         self.previous_error = error
         return containers_needed_total, error, control_signal
@@ -58,7 +58,7 @@ def cb(*args):
             # Update total_frames_queued and remove old entries
             all_sensors = {sensor: (ts, value) for sensor, (ts, value) in all_sensors.items() if current_time - ts <= 5}  # Keep only recent entries
             total_frames_queued = sum(value for _, value in all_sensors.values())  # Sum only the value from the recent tuples
-            print(all_sensors)
+            # print(all_sensors)
     except Exception as e:  # Catch any exception
         logging.error(f"Error in callback: {e}")  # Log the error
 
@@ -75,7 +75,7 @@ change = []
 previous_frames_queued = 0
 container_count = 1
 controller = Controller()
-for t in range(0,200):
+for t in range(0,100):
     time.sleep(1)
 # if last_frames_queued != 0:
     if t % 5 == 0:
@@ -86,11 +86,15 @@ for t in range(0,200):
         if int(container_count) > 0:
             process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
         setpoint.append(current_fpr)
+        control.append(container_count)
+        err.append(error)
         err.append(error//CONTAINER_CAPACITY)
 
 fig,axs = plt.subplots(3,1)
-axs[0].plot(range(0,100), setpoint)
-axs[1].plot(range(0,100), control)
-axs[2].plot(range(0,100), err)
+axs[0].plot(range(0,len(setpoint)), setpoint)
+axs[1].plot(range(0,len(control)), control)
+axs[2].plot(range(0,len(err)), err)
 
-plt.show()
+
+# plt.show()  # Display the figure
+fig.savefig('./control_plot.png')  # Save the figure as a PNG file

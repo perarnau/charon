@@ -33,7 +33,7 @@ for fold in folders:
 
         f_file = [key for key in DATA[fold].keys() if "frame" in key][0]  # Filter keys to find f_file
         k_file = [key for key in DATA[fold].keys() if "k3" in key][0]
-        plot_y_order = DATA[fold][f_file].keys()
+        plot_y_order = DATA[fold][f_file]['derived'].keys()
         plot_x_order = DATA[fold][k_file]['derived'].keys()
         # print(plot_x_order,plot_y_order)
 
@@ -41,11 +41,11 @@ for fold in folders:
         y_index_map = {name: idx for idx, name in enumerate(plot_y_order)}
         x_index_map = {name: idx for idx, name in enumerate(plot_x_order) if "consumer" in name}
 
-        f_averages = [(key, DATA[fold][f_file][key]['average']) for key in DATA[fold][f_file].keys()]
+        f_averages = [(key, DATA[fold][f_file]['derived'][key].value.mean()) for key in DATA[fold][f_file]['derived'].keys()]
         k_averages = [(key, DATA[fold][k_file]['derived'][key]['average']) for key in DATA[fold][k_file]['derived'].keys() if "consumer" in key] 
         for f_key, f_avg in f_averages:
             for k_key, k_avg in k_averages:
-                axs[y_index_map[f_key], x_index_map[k_key]-4].scatter(k_avg.iloc[0], f_avg.iloc[0], label=f_key, color='k')  # Use mapped indices
+                axs[y_index_map[f_key], x_index_map[k_key]-4].scatter(k_avg.iloc[0], f_avg, label=f_key, color='k')  # Use mapped indices
                 axs[y_index_map[f_key], x_index_map[k_key]-4].set_xlabel(k_key[k_key.find("consumer")+9:k_key.find("data")])  # Label x-axis
                 axs[y_index_map[f_key], x_index_map[k_key]-4].set_ylabel(f_key[11:]) 
                 # axs[y_index_map[f_key], x_index_map[k_key]].legend()  # Show legend for the plot

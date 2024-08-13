@@ -55,6 +55,31 @@ def execute_experiment(experiment_dir):
                 sensor_data[file][sensor]['average'] = sensor_data[file][sensor]['value'].mean()
                 # print(sensor_data)
             
+            if 'frames' in file:
+                # time.sleep(1)
+                frames_queued_keys = [key for key in sensor_data[file] if 'framesqueued' in key]
+                combined_frames_queued_data = pd.concat([sensor_data[file][key] for key in frames_queued_keys])
+                combined_frames_queued_data.reset_index(drop=True, inplace=True)
+
+                frames_processed_keys = [key for key in sensor_data[file] if 'framesprocessed' in key]
+                combined_frames_processed_data = pd.concat([sensor_data[file][key] for key in frames_processed_keys])
+                combined_frames_processed_data.reset_index(drop=True, inplace=True)
+
+                batches_processed_keys = [key for key in sensor_data[file] if 'batchesprocessed' in key]
+                combined_batches_processed_data = pd.concat([sensor_data[file][key] for key in batches_processed_keys])
+                combined_batches_processed_data.reset_index(drop=True, inplace=True)
+            
+                infer_time_keys = [key for key in sensor_data[file] if 'inferTime' in key]
+                combined_infer_time_data = pd.concat([sensor_data[file][key] for key in infer_time_keys])
+                combined_infer_time_data.reset_index(drop=True, inplace=True)
+
+                sensor_data[file]['derived'] = {}
+                sensor_data[file]['derived']['FQ'] = combined_frames_queued_data
+                sensor_data[file]['derived']['FP'] = combined_frames_processed_data
+                sensor_data[file]['derived']['CB'] = combined_batches_processed_data
+                sensor_data[file]['derived']['IT'] = combined_infer_time_data
+
+
             # Obtain sensor data sampling instants
             if 'k3' in file:
                 # time.sleep(1)
@@ -95,29 +120,28 @@ def execute_experiment(experiment_dir):
     elapsed_time = sampling_instants - sampling_instants[0]
 
 
-    for ele in sensor_data[f_file]:
-        time_array = sensor_data[f_file][ele]['time'].values
+    for ele in sensor_data[f_file]['derived']:
+        # time_array = sensor_data[f_file][ele]['time'].values
         
         # Find the closest indices for all sampling instants at once
-        closest_indices = np.searchsorted(time_array, sampling_instants)
-        closest_indices = np.clip(closest_indices, 0, len(time_array) - 1)
+        # closest_indices = np.searchsorted(time_array, sampling_instants)
+        # closest_indices = np.clip(closest_indices, 0, len(time_array) - 1)
         
 
         # Process the frames at these time points
-        post_processed = [sensor_data[f_file][ele].iloc[i]['value'] - sensor_data[f_file][ele].iloc[i-1]['value'] for i in range(len(sensor_data[f_file][ele].time[1:]))] # change it to closest indices for a fair comparison
-        
-        cum_data = sensor_data[f_file][ele]['value']
+        post_processed = [sensor_data[f_file]['derived'][ele].iloc[i]['value'] - sensor_data[f_file]['derived'][ele].iloc[i-1]['value'] for i in range(len(sensor_data[f_file]['derived'][ele].time[1:]))] # change it to closest indices for a fair comparison
+        cum_data = sensor_data[f_file]['derived'][ele]['value']
         # Determine subplot indices
         
-        label_name = ele[ele.find("ptychonn.2.")+11:]
+        label_name = ele
         row = ax_frame_index // 2
         col = ax_frame_index % 2
-        axs_frame[row, col].plot(sensor_data[f_file][ele].elapsed_time[1:], post_processed, label=ele)
+        axs_frame[row, col].plot(sensor_data[f_file]['derived'][ele].elapsed_time[1:], post_processed, label=ele)
         axs_frame[row, col].set_xlabel('Elapsed Time [s]')
         axs_frame[row, col].set_ylabel(f'{label_name}')
         # axs_frame[row, col].set_title(identifier)  # Set title as identifier
 
-        axs_frame[row+2,col].plot(sensor_data[f_file][ele].elapsed_time, cum_data)
+        axs_frame[row+2,col].plot(sensor_data[f_file]['derived'][ele].elapsed_time, cum_data)
         axs_frame[row+2, col].set_xlabel('Elapsed Time [s]')
         axs_frame[row+2, col].set_ylabel(f'cumulated_{label_name}')
         # axs_frame[row+2, col].set_title(identifier)  # Set title as identifier
