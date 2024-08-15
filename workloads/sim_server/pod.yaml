@@ -14,7 +14,7 @@ spec:
     - --datatype
     - int16
     - --frame-rate
-    - '500'
+    - '100'
     - --runtime
     - '60'
     - --disable-curses
