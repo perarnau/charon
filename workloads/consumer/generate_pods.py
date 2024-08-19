@@ -87,7 +87,7 @@ def update_cpu(data, cpu):
     return new_data
 
 # Generate 10 YAML files with different frame rates
-for i, cpu in enumerate(range(100, 1001, 100), start=1):
+for i, cpu in enumerate(range(100, 1001, 50), start=1):
     new_data = update_cpu(data, cpu)
     with open(f'{current_working_directory}/deployment_{cpu}.yaml', 'w') as file:
         yaml.dump(new_data, file)

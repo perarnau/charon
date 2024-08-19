@@ -8,6 +8,7 @@ import uuid  # Add this import
 import argparse
 import logging  # Add this import
 import csv 
+import sys
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -44,8 +45,8 @@ frame_writer.writerow(['time', 'sensor', 'value'])
 # Function to determine the number of motors needed based on the load and proportional control
 class Controller():
     def __init__(self):  # Changed init to __init__
-        self.K_p = 1
-        self.K_d = 3
+        self.K_p = 5 #1
+        self.K_d = 3 #3
         self.previous_error = 0  # Initialize previous_error as an instance variable
 
     def PD_control(self, current_load):
@@ -100,18 +101,28 @@ for t in range(0,100):
         total_needed, error, control_signal = controller.PD_control(current_fpr)
         container_count = total_needed
         # print("-----",container_count)
-        if int(container_count) > 0:
-            process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
+        # if int(container_count) > 0:
+            # process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
         setpoint.append(current_fpr)
         control.append(container_count)
         err.append(error)
         err.append(error//CONTAINER_CAPACITY)
+    
 
 
 fig,axs = plt.subplots(3,1)
 axs[0].plot(range(0,len(setpoint)), setpoint)
+axs[0].set_title('Setpoint of the system')
+axs[0].set_ylabel('Frames Queued')
+axs[0].set_xlabel('Time')
 axs[1].plot(range(0,len(control)), control)
+axs[1].set_title('Control signal to the system')
+axs[1].set_ylabel('Containers')
+axs[1].set_xlabel('Time')
 axs[2].plot(range(0,len(err)), err)
+axs[2].set_title('Error in the system')
+axs[2].set_ylabel('Error')
+axs[2].set_xlabel('Time')
 
 
 # plt.show()  # Display the figure
@@ -120,3 +131,4 @@ fig.savefig('./control_plot.png')  # Save the figure as a PNG file
 # End the program upon completion
 process.terminate()  # Terminate the subprocess
 frame_file.close()  # Close the CSV file
+# sys.exit(0)
