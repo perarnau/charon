@@ -311,23 +311,23 @@
       make -j
       make install
       
-  - name: Create systemd service unit file for nrmd
-    ansible.builtin.copy:
-      dest: /etc/systemd/system/nrmd.service
-      content: |
-        [Unit]
-        Description=NRMD Service
+  # - name: Create systemd service unit file for nrmd
+  #   ansible.builtin.copy:
+  #     dest: /etc/systemd/system/nrmd.service
+  #     content: |
+  #       [Unit]
+  #       Description=NRMD Service
 
-        [Service]
-        Type=simple
-        ExecStart=/usr/bin/nrmd
-        Restart=always
-        User=cc
-        StandardOutput=journal
-        StandardError=journal
+  #       [Service]
+  #       Type=simple
+  #       ExecStart=/usr/bin/nrmd
+  #       Restart=always
+  #       User=cc
+  #       StandardOutput=journal
+  #       StandardError=journal
 
-        [Install]
-        WantedBy=multi-user.target
+  #       [Install]
+  #       WantedBy=multi-user.target
 
   # - name: Create systemd service unit file for nrm-geopm
   #   ansible.builtin.copy:
@@ -351,10 +351,10 @@
   - name: Reload systemd to recognize the new service
     ansible.builtin.command: systemctl daemon-reload
 
-  - name: Start nrmd service
-    ansible.builtin.systemd:
-      name: nrmd
-      state: started
+  # - name: Start nrmd service
+  #   ansible.builtin.systemd:
+  #     name: nrmd
+  #     state: started
 
   # - name: Provision geopm
   #   ansible.builtin.shell: |
@@ -380,16 +380,16 @@
       line: 'export PYTHONPATH=/usr/lib/python3.10/site-packages:$PYTHONPATH # Added by ansible'
       state: present
 
-  - name: Clone nrm-benchmarks
-    ansible.builtin.git:
-      repo: 'https://github.com/anlsys/nrm-benchmarks.git'
-      dest: ~{{ ansible_user }}/dependencies/nrm-benchmarks
+  # - name: Clone nrm-benchmarks
+  #   ansible.builtin.git:
+  #     repo: 'https://github.com/anlsys/nrm-benchmarks.git'
+  #     dest: ~{{ ansible_user }}/dependencies/nrm-benchmarks
 
-  - name: Install nrm-benchmarks
-    ansible.builtin.shell: |
-      cd ~{{ ansible_user }}/dependencies/nrm-benchmarks
-      ./autogen.sh
-      ./configure
-      make -j
-      make install
+  # - name: Install nrm-benchmarks
+  #   ansible.builtin.shell: |
+  #     cd ~{{ ansible_user }}/dependencies/nrm-benchmarks
+  #     ./autogen.sh
+  #     ./configure
+  #     make -j
+  #     make install
   
