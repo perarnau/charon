@@ -87,23 +87,23 @@ client.start_event_listener("")
 
 # Example usage
 control = []
-setpoint = []
+queue = []
 err = []
 change = []
 previous_frames_queued = 0
 container_count = 1
 controller = Controller()
-for t in range(0,100):
+for t in range(0,200):
     time.sleep(1)
 # if last_frames_queued != 0:
     if t % 5 == 0:
-        current_fpr = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
-        total_needed, error, control_signal = controller.PD_control(current_fpr)
+        current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
+        total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
         # print("-----",container_count)
-        # if int(container_count) > 0:
-            # process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
-        setpoint.append(current_fpr)
+        if int(container_count) > 0:
+            process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
+        queue.append(current_queue)
         control.append(container_count)
         err.append(error)
         err.append(error//CONTAINER_CAPACITY)
@@ -111,8 +111,8 @@ for t in range(0,100):
 
 
 fig,axs = plt.subplots(3,1)
-axs[0].plot(range(0,len(setpoint)), setpoint)
-axs[0].set_title('Setpoint of the system')
+axs[0].plot(range(0,len(queue)), queue)
+axs[0].set_title('Frames Queued between sampling intervals')
 axs[0].set_ylabel('Frames Queued')
 axs[0].set_xlabel('Time')
 axs[1].plot(range(0,len(control)), control)

@@ -16,7 +16,7 @@ spec:
     - --frame-rate
     - '100'
     - --runtime
-    - '60'
+    - '120'
     - --disable-curses
     command:
     - pvapy-ad-sim-server
