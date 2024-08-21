@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 import warnings
 
 warnings.filterwarnings('ignore')
+label_dict = {'FQ': 'Avg. No. of Frames in Queue', 'FP': 'Avg. No. of Frames Processed/ Second', 'CB': 'Avg. No. of Batches Processed/ Second', 'IT': 'Avg. Inference Time (s)'}
 
 WD = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = WD + "/experiment_data/RESULTS"
@@ -21,7 +22,7 @@ for file in files:
 
 DATA = {}
 
-fig,axs = plt.subplots(4,2, figsize=(12, 8))  # Increase figure size
+fig,axs = plt.subplots(5,1, figsize=(12, 12))  # Size in inches: 12 inches wide, 8 inches tall
 
 root, folders, files = next(os.walk(SOURCE_D))
 for fold in folders:
@@ -41,19 +42,21 @@ for fold in folders:
         y_index_map = {name: idx for idx, name in enumerate(plot_y_order)}
         x_index_map = {name: idx for idx, name in enumerate(plot_x_order) if "consumer" in name}
 
-        f_averages = [(key, DATA[fold][f_file]['derived'][key].value.mean()) for key in DATA[fold][f_file]['derived'].keys()]
+        f_averages = [(key, DATA[fold][f_file]['derived'][key].instantaneous_data.mean()) for key in DATA[fold][f_file]['derived'].keys()]
         k_averages = [(key, DATA[fold][k_file]['derived'][key]['average']) for key in DATA[fold][k_file]['derived'].keys() if "consumer" in key] 
         for f_key, f_avg in f_averages:
             for k_key, k_avg in k_averages:
-                axs[y_index_map[f_key], x_index_map[k_key]-4].scatter(k_avg.iloc[0], f_avg, label=f_key, color='k')  # Use mapped indices
-                axs[y_index_map[f_key], x_index_map[k_key]-4].set_xlabel(k_key[k_key.find("consumer")+9:k_key.find("data")])  # Label x-axis
-                axs[y_index_map[f_key], x_index_map[k_key]-4].set_ylabel(f_key) 
-                # axs[y_index_map[f_key], x_index_map[k_key]].legend()  # Show legend for the plot
-        
-        
-        # print("check")
-
-
+                if "cpu" in k_key:
+                    axs[y_index_map[f_key]].set_title(f"{label_dict[f_key]} vs CPU Utilization")
+                    axs[y_index_map[f_key]].scatter(k_avg.iloc[0], f_avg, label=label_dict[f_key], color='k')  # Use mapped indices
+                    axs[y_index_map[f_key]].set_ylabel("Value") 
+                    if f_avg > 500:
+                        print("----------------------------------------------------------------------------------------",fold)
+                    if 'FP' in f_key:
+                        axs[4].scatter(k_avg.iloc[0],  DATA[fold][f_file]['derived'][f_key]['value'].iloc[-1], label=f_key, color='k')
+                        axs[4].set_title(f"Total No. of Frames Processed vs CPU Utilization")
+                        axs[4].set_xlabel("CPU UTILIZATION (mcpu)")  # Label x-axis
+                        axs[4].set_ylabel("Value") 
 # print(DATA)
 fig.tight_layout()  # Adjust layout to fit all labels and axes
 fig.show()

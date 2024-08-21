@@ -65,7 +65,7 @@ def cb(*args):
     # print("///////////////////",scope)
     sensor = sensor.decode("UTF-8")
     # print("----------",sensor)
-    timestamp = time/1e9
+    timestamp = time/1e9 # convert to seconds
     # print("*********************",time)
     # print(args)
     # print(sensor)
@@ -103,8 +103,4 @@ try:
 finally:
     frame_file.close()
     k3_file.close()  # Ensure k3_file is also closed
-    # compress_files(args.fr)
-
-    if stop_event_listener:
-        print("Stopping the event listener and exiting.")
-        sys.exit()  # Forcefully terminate the program
+    os._exit(1)

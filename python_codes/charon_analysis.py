@@ -144,6 +144,7 @@ def execute_experiment(experiment_dir):
         # Process the frames at these time points
         post_processed = [0] + [(sensor_data[f_file]['derived'][ele].iloc[i]['value'] - sensor_data[f_file]['derived'][ele].iloc[i-1]['value'])/(sensor_data[f_file]['derived'][ele].iloc[i]['time']-sensor_data[f_file]['derived'][ele].iloc[i-1]['time']) for i in range(1, len(sensor_data[f_file]['derived'][ele].time))]  # Initialize with zero
         cum_data = sensor_data[f_file]['derived'][ele]['value']
+        sensor_data[f_file]['derived'][ele]['instantaneous_data'] = post_processed
         # Determine subplot indices
         
         label_name = ele

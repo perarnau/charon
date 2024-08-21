@@ -14,9 +14,9 @@ spec:
     - --datatype
     - int16
     - --frame-rate
-    - '100'
+    - '150'
     - --runtime
-    - '120'
+    - '60'
     - --disable-curses
     command:
     - pvapy-ad-sim-server
