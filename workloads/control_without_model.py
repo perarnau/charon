@@ -9,6 +9,8 @@ import argparse
 import logging  # Add this import
 import csv 
 import sys
+from kubernetes import client as CL
+from kubernetes import config as CF
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -53,7 +55,7 @@ class Controller():
         error = current_load
         diff_error = error - self.previous_error
         control_signal = self.K_p * error + self.K_d * diff_error
-        print("-----------------",error,diff_error,control_signal)
+        print(f"-----------------,error is {error},diff_error is {diff_error} and control_signal is {control_signal} and containers needed are {control_signal // CONTAINER_CAPACITY}")
         containers_needed_total = control_signal // CONTAINER_CAPACITY
         print(f"////{containers_needed_total}")
         self.previous_error = error
@@ -93,40 +95,82 @@ change = []
 previous_frames_queued = 0
 container_count = 1
 controller = Controller()
-for t in range(0,200):
-    time.sleep(1)
+# for t in range(0,200):
+#     time.sleep(1)
 # if last_frames_queued != 0:
-    if t % 5 == 0:
+t = 0
+pod_status = "None"
+while pod_status != "Succeeded":
+    time.sleep(1)
+    if t % 2 == 0:
         current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
         total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
         # print("-----",container_count)
         if int(container_count) > 0:
             process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
-        queue.append(current_queue)
-        control.append(container_count)
-        err.append(error)
-        err.append(error//CONTAINER_CAPACITY)
-    
+            control.append((t,container_count))
+        queue.append((t,current_queue))
+        err.append((t,error))
+        # err.append(t,error//CONTAINER_CAPACITY)
 
 
-fig,axs = plt.subplots(3,1)
-axs[0].plot(range(0,len(queue)), queue)
+    # Check the status of the "sim-server" pod
+    try:
+        # Load Kubernetes configuration
+        CF.load_kube_config()
+
+        # Create a Kubernetes API client
+        api_client = CL.ApiClient()
+        v1 = CL.CoreV1Api(api_client)
+
+        # Get the status of the "sim-server" pod
+        pod = v1.read_namespaced_pod(name="sim-server", namespace="workload")
+        pod_status = pod.status.phase
+
+        print(f"Status of sim-server pod: {pod_status}")
+
+        # If the pod is not running, we might want to take some action
+        if pod_status != 'Running':
+            print("Sim-server not completed")
+            # print("Warning: sim-server pod is not in Running state")
+            # You can add additional logic here if needed
+        elif pod_status == "Succeeded":
+            break
+
+    except Exception as e:
+        pass
+        # print(f"Error checking sim-server pod status: {e}")
+    t+=1
+
+
+
+fig, axs = plt.subplots(3, 1, figsize=(10, 10))
+
+# Set x-axis limit for all subplots
+x_limit = 120
+
+axs[0].scatter(*zip(*queue))
 axs[0].set_title('Frames Queued between sampling intervals')
 axs[0].set_ylabel('Frames Queued')
-axs[0].set_xlabel('Time')
-axs[1].plot(range(0,len(control)), control)
+axs[0].set_xlim(0, x_limit)
+
+axs[1].scatter(*zip(*control))
 axs[1].set_title('Control signal to the system')
-axs[1].set_ylabel('Containers')
-axs[1].set_xlabel('Time')
-axs[2].plot(range(0,len(err)), err)
+axs[1].set_ylabel('Container Count')
+axs[1].set_xlim(0, x_limit)
+
+axs[2].scatter(*zip(*err))
 axs[2].set_title('Error in the system')
 axs[2].set_ylabel('Error')
 axs[2].set_xlabel('Time')
+axs[2].set_xlim(0, x_limit)
 
+# Adjust layout to prevent overlapping
+plt.tight_layout()
 
 # plt.show()  # Display the figure
-fig.savefig('./control_plot.png')  # Save the figure as a PNG file
+fig.savefig(f'./experiment_data/control_plot_{now}.png')  # Save the figure as a PNG file
 
 # End the program upon completion
 process.terminate()  # Terminate the subprocess

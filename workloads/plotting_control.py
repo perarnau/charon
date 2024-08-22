@@ -4,6 +4,7 @@ import pandas as pd
 import re
 import matplotlib.pyplot as plt
 import yaml  # Add this import at the top
+from datetime import datetime  # Import datetime module
 
 pwd = os.path.dirname(__file__)
 EXP_DIR = pwd+'/experiment_data/control'
@@ -75,9 +76,13 @@ for container_id, attributes in DATA.items():
 plt.xlabel('Elapsed Time')
 plt.ylabel('Value')
 plt.title('Values vs Elapsed Time for Each Container')
-# plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
 plt.tight_layout()
-plt.show()
+
+# Save figure with current timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+plt.savefig(f'./experiment_data/plot_{timestamp}.png')
+plt.close()  # Close the plot instead of showing it
+
 
 print(f"Total frames processed: {total_frames_processed}")
 print(f"Total frames generated: {TOTAL_FRAMES_GENERATED}")

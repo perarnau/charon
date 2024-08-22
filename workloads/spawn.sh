@@ -17,7 +17,7 @@ yaml_files=(
 # Apply each YAML file
 for yaml_file in "${yaml_files[@]}"; do
   echo "Applying $yaml_file..."
-  kubectl apply -f "$yaml_file"
+  kubectl apply -f "$yaml_file" -n workload
 
   if [ $? -ne 0 ]; then
     echo "Failed to apply $yaml_file"
