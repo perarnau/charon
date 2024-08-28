@@ -11,6 +11,8 @@ import csv
 import sys
 from kubernetes import client as CL
 from kubernetes import config as CF
+import nrm
+import time
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -42,6 +44,10 @@ else:
 frame_file = open(f'{EXP_DIR}/performance_{now}.csv', mode='w', newline='')
 frame_writer = csv.writer(frame_file)
 frame_writer.writerow(['time', 'sensor', 'value'])
+
+control_file = open(f'{EXP_DIR}/control_{now}.csv', mode='w', newline='')
+control_writer = csv.writer(control_file)
+control_writer.writerow(['time', 'variable', 'value'])
 
 
 # Function to determine the number of motors needed based on the load and proportional control
@@ -102,14 +108,19 @@ t = 0
 pod_status = "None"
 while pod_status != "Succeeded":
     time.sleep(1)
-    if t % 2 == 0:
+    if t % 5 == 0:
         current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
         total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
         # print("-----",container_count)
+        time_now = str(nrm.nrm_time_fromns(time.time_ns()).tv_sec) + str(nrm.nrm_time_fromns(time.time_ns()).tv_nsec)
         if int(container_count) > 0:
             process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
             control.append((t,container_count))
+        control_writer.writerow([time_now, "total_needed", total_needed])
+        control_writer.writerow([time_now, "error", error])
+        control_writer.writerow([time_now, "control_signal", control_signal])
+
         queue.append((t,current_queue))
         err.append((t,error))
         # err.append(t,error//CONTAINER_CAPACITY)
