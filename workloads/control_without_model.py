@@ -27,7 +27,7 @@ os.chdir(os.path.dirname(__file__))
 
 client = nrm.Client()
 # Constants
-CONTAINER_CAPACITY = 200
+CONTAINER_CAPACITY = 64
 total_active_capacity = 0
 total_frames_queued = 0
 all_sensors = {}

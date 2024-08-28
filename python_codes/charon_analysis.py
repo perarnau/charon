@@ -184,8 +184,8 @@ def execute_experiment(experiment_dir):
     # Set titles for the figures
     fig_frame.suptitle(f'CPU allocation of {identifier} mcpu')
     fig_k3.suptitle(f'Resource Allocation_fr_{identifier}')
-    fig_frame.savefig(os.path.join(OUTPUT_DIR, f'fig_frame_{identifier}.png'))
-    fig_k3.savefig(os.path.join(OUTPUT_DIR, f'fig_k3_{identifier}.png'))
+    fig_frame.savefig(os.path.join(OUTPUT_DIR, f'fig_frame_{identifier}.pdf'))
+    fig_k3.savefig(os.path.join(OUTPUT_DIR, f'fig_k3_{identifier}.pdf'))
     return sensor_data, fig_frame, fig_k3, identifier
 
 
