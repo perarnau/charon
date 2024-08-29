@@ -1,0 +1,8 @@
+pillow
+streamlit
+sh
+numpy>=1.22
+pvapy==5.3.*
+psutil
+nano
+prometheus-client

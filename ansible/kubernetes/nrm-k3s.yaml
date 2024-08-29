@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nrm-k3s
+  name: nrm-k3s
+spec:
+  selector:
+    matchLabels:
+      app: nrm-k3s
+  template:
+    metadata:
+      labels:
+        app: nrm-k3s
+    spec:
+      serviceAccountName: nrm-k3s
+      nodeSelector:
+        node-role.kubernetes.io/master: "true"
+      containers:
+        - name: nrm-k3s
+          image: gemblerz/nrm:0.1.0
+          imagePullPolicy: Always
+          command: ["python3"]
+          args:
+          - /app/nrm-k3s.py
+          - --namespace
+          - workload
+          env:
+          - name: NRM_URI
+            value: "tcp://nrm"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 50Mi
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nrm-k3s
+rules:
+  - apiGroups: ["", "batch", "metrics.k8s.io"] # "" indicates the core API group
+    resources:
+      [
+        "namespaces",
+        "configmaps",
+        "services",
+        "jobs",
+        "nodes",
+        "pods",
+        "pods/log",
+        "secrets",
+        "events",
+      ]
+    verbs: ["create", "get", "watch", "list", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nrm-k3s
+roleRef:
+  kind: ClusterRole
+  name: nrm-k3s
+  apiGroup: rbac.authorization.k8s.io
+  # `edit` is a built-in cluster role. more info about these can be found here:
+  # https://kubernetes.io/docs/reference/access-authn-authz/rbac/#user-facing-roles
+subjects:
+  - kind: ServiceAccount
+    name: nrm-k3s
+    namespace: charon
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nrm-k3s

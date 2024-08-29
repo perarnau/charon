@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sim-server
+spec:
+  selector:
+    matchLabels:
+      app: sim-server
+  template:
+    metadata:
+      labels:
+        app: sim-server
+    spec:
+      containers:
+      - name: sim-server
+        resizePolicy: # for pod being updated without restarting
+        - resourceName: cpu
+          restartPolicy: NotRequired
+        - resourceName: memory
+          restartPolicy: NotRequired
+        image: gemblerz/ptychonn:0.2.0
+        command: ["pvapy-ad-sim-server"]
+        args:
+        - --channel-name
+        - ad:image
+        - --n-x-pixels
+        - "512"
+        - --n-y-pixels
+        - "512"
+        - --datatype
+        - int16
+        - --frame-rate
+        - "1000"
+        - --runtime
+        - "60"
+        - --disable-curses
+        resources:
+          limits:
+            memory: 2Gi
+          requests:
+            cpu: 1000m
+            memory: 500Mi

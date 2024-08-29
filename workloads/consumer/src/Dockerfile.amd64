@@ -1,0 +1,85 @@
+FROM nvcr.io/nvidia/tensorrt:23.05-py3
+
+RUN apt-get update \
+  && apt-get install -y \
+  git \
+  software-properties-common \
+  gcc \
+  nano \
+  make \
+  autoconf \
+  automake \
+  libtool \
+  pkg-config \
+  libzmq3-dev \
+  libzmq5 \
+  libczmq-dev \
+  libczmq4 \
+  libprotobuf-c-dev \
+  protobuf-c-compiler \
+  libjansson-dev \
+  libjansson4 \
+  check \
+  libhwloc-dev \
+  libpapi-dev \
+  mpich \
+  libomp-dev \
+  libomp5 \
+  python3-pip
+
+# geopm plugin disabled for NRM
+# RUN add-apt-repository ppa:geopm/release \
+#   && apt-get update \
+#   && apt-get install -y \
+#   geopm-service \
+#   libgeopmd-dev \
+#   libgeopmd2 \
+#   python3-geopmdpy
+
+WORKDIR /app
+RUN cd /app \
+  && git clone https://github.com/bats-core/bats-core.git \
+  && cd /app/bats-core \
+  && ./install.sh /usr
+
+# NOTE: this is only needed for <= Ubuntu 20.04
+#       before running this make sure you don't install libhwloc-dev above
+# apt repository has hwloc=2.1, but nrm requires > 2.5
+# we compile the library manually
+# RUN cd /app \
+#   && git clone https://github.com/open-mpi/hwloc.git \
+#   && cd /app/hwloc \
+#   && ./autogen.sh \
+#   && ./configure --prefix=/usr \
+#   && make \
+#   && make install
+
+RUN cd /app \
+  && git clone https://github.com/anlsys/libnrm.git \
+  && cd /app/libnrm \
+  && git checkout feature/prometheus-exporter \
+  && ./autogen.sh \
+  && ./configure --prefix=/usr --with-python \
+  && make -j \
+  && make install
+
+# Add nrm Python wrapper path to Python 3.8 and 3.10
+ENV PYTHONPATH="${PYTHONPATH}:/usr/lib/python3.8/site-packages:/usr/lib/python3.10/site-packages"
+
+WORKDIR /app
+
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychoNN_8_128_fp16.trt /app/model_128.trt
+# TRT models compatible with TRT compute 75
+# ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
+# ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt75.trt /app/model_512_fp32.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt75.trt /app/model_512_fp16.trt
+ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/diff_scan_810.npy /app/scan.npy
+
+COPY requirements.txt /app
+RUN pip3 install --upgrade pip
+RUN pip3 install -r requirements.txt
+
+COPY inferPtychoNN.py inferPtychoNNImageProcessor.py helper.py /app/
+ENV PYTHONPATH="${PYTHONPATH}:/app"
+EXPOSE 9100

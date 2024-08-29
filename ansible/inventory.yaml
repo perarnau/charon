@@ -1,0 +1,7 @@
+---
+charon_test:
+  hosts:
+    main:
+      ansible_host: "129.114.108.50"
+      ansible_user: cc
+      ansible_ssh_private_key_file: "/Users/mac-mini/.ssh/id_rsa"

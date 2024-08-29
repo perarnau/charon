@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stat-collector
+spec:
+  selector:
+    matchLabels:
+      app: stat-collector
+  template:
+    metadata:
+      labels:
+        app: stat-collector
+    spec:
+      containers:
+      - name: stat-collector
+        image: 10.31.81.1:5000/local/src:latest
+        command: ["/bin/bash"]
+        args:
+        - -c
+        - 'while true; do sleep 1; done'

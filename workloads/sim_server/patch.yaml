@@ -1,0 +1,11 @@
+---
+spec:
+  containers:
+  - name: sim-server
+    # This is for testing how shrinking the memory cap
+    # impacts the pod
+    resources:
+      limits:
+        memory: 100Mi
+      requests:
+        memory: 100Mi

@@ -1,0 +1,199 @@
+apiVersion: monitoring.grafana.com/v1alpha1
+kind: MetricsInstance
+metadata:
+  name: primary
+  labels:
+    agent: grafana-agent-metrics
+spec:
+  remoteWrite:
+  - url: {{ mimir_url }}
+ 
+  # Supply an empty namespace selector to look in all namespaces. Remove
+  # this to only look in the same namespace as the MetricsInstance CR
+  serviceMonitorNamespaceSelector: {}
+  serviceMonitorSelector:
+    matchLabels:
+      instance: primary
+
+  # Supply an empty namespace selector to look in all namespaces. Remove
+  # this to only look in the same namespace as the MetricsInstance CR.
+  podMonitorNamespaceSelector: {}
+  podMonitorSelector:
+    matchLabels:
+      instance: primary
+
+  # Supply an empty namespace selector to look in all namespaces. Remove
+  # this to only look in the same namespace as the MetricsInstance CR.
+  probeNamespaceSelector: {}
+  probeSelector:
+    matchLabels:
+      instance: primary
+---
+apiVersion: monitoring.grafana.com/v1alpha1
+kind: Integration
+metadata:
+ name: node-exporter
+ labels:
+   agent: grafana-agent-integrations
+spec:
+ name: node_exporter
+ type:
+   allNodes: true
+   unique: true
+ config:
+   autoscrape:
+     enable: true
+     metrics_instance: {{ k3s_namespace }}/primary
+   rootfs_path: /default/node_exporter/rootfs
+   sysfs_path: /default/node_exporter/sys
+   procfs_path: /default/node_exporter/proc
+ volumeMounts:
+   - mountPath: /default/node_exporter/proc
+     name: proc
+   - mountPath: /default/node_exporter/sys
+     name: sys
+   - mountPath: /default/node_exporter/rootfs
+     name: root
+ volumes:
+   - name: proc
+     hostPath:
+       path: /proc
+   - name: sys
+     hostPath:
+       path: /sys
+   - name: root
+     hostPath:
+       path: /root
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    instance: primary
+  name: kubelet-monitor
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    honorLabels: true
+    interval: {{ scrape_interval }}
+    metricRelabelings:
+    - action: keep
+      regex: kubelet_cgroup_manager_duration_seconds_count|go_goroutines|kubelet_pod_start_duration_seconds_count|kubelet_runtime_operations_total|kubelet_pleg_relist_duration_seconds_bucket|volume_manager_total_volumes|kubelet_volume_stats_capacity_bytes|container_cpu_usage_seconds_total|container_network_transmit_bytes_total|kubelet_runtime_operations_errors_total|container_network_receive_bytes_total|container_memory_swap|container_network_receive_packets_total|container_cpu_cfs_periods_total|container_cpu_cfs_throttled_periods_total|kubelet_running_pod_count|node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate|container_memory_working_set_bytes|storage_operation_errors_total|kubelet_pleg_relist_duration_seconds_count|kubelet_running_pods|rest_client_request_duration_seconds_bucket|process_resident_memory_bytes|storage_operation_duration_seconds_count|kubelet_running_containers|kubelet_runtime_operations_duration_seconds_bucket|kubelet_node_config_error|kubelet_cgroup_manager_duration_seconds_bucket|kubelet_running_container_count|kubelet_volume_stats_available_bytes|kubelet_volume_stats_inodes|container_memory_rss|kubelet_pod_worker_duration_seconds_count|kubelet_node_name|kubelet_pleg_relist_interval_seconds_bucket|container_network_receive_packets_dropped_total|kubelet_pod_worker_duration_seconds_bucket|container_start_time_seconds|container_network_transmit_packets_dropped_total|process_cpu_seconds_total|storage_operation_duration_seconds_bucket|container_memory_cache|container_network_transmit_packets_total|kubelet_volume_stats_inodes_used|up|rest_client_requests_total
+      sourceLabels:
+      - __name__
+    port: https-metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - action: replace
+      targetLabel: job
+      replacement: integrations/kubernetes/kubelet
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubelet
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    instance: primary
+  name: cadvisor-monitor
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    honorLabels: true
+    honorTimestamps: false
+    interval: {{ scrape_interval }}
+    metricRelabelings:
+    - action: keep
+      regex: kubelet_cgroup_manager_duration_seconds_count|go_goroutines|kubelet_pod_start_duration_seconds_count|kubelet_runtime_operations_total|kubelet_pleg_relist_duration_seconds_bucket|volume_manager_total_volumes|kubelet_volume_stats_capacity_bytes|container_cpu_usage_seconds_total|container_network_transmit_bytes_total|kubelet_runtime_operations_errors_total|container_network_receive_bytes_total|container_memory_swap|container_network_receive_packets_total|container_cpu_cfs_periods_total|container_cpu_cfs_throttled_periods_total|kubelet_running_pod_count|node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate|container_memory_working_set_bytes|storage_operation_errors_total|kubelet_pleg_relist_duration_seconds_count|kubelet_running_pods|rest_client_request_duration_seconds_bucket|process_resident_memory_bytes|storage_operation_duration_seconds_count|kubelet_running_containers|kubelet_runtime_operations_duration_seconds_bucket|kubelet_node_config_error|kubelet_cgroup_manager_duration_seconds_bucket|kubelet_running_container_count|kubelet_volume_stats_available_bytes|kubelet_volume_stats_inodes|container_memory_rss|kubelet_pod_worker_duration_seconds_count|kubelet_node_name|kubelet_pleg_relist_interval_seconds_bucket|container_network_receive_packets_dropped_total|kubelet_pod_worker_duration_seconds_bucket|container_start_time_seconds|container_network_transmit_packets_dropped_total|process_cpu_seconds_total|storage_operation_duration_seconds_bucket|container_memory_cache|container_network_transmit_packets_total|kubelet_volume_stats_inodes_used|up|rest_client_requests_total
+      sourceLabels:
+      - __name__
+    path: /metrics/cadvisor
+    port: https-metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - action: replace
+      targetLabel: job
+      replacement: integrations/kubernetes/cadvisor
+    scheme: https
+    tlsConfig:
+      insecureSkipVerify: true
+  namespaceSelector:
+    matchNames:
+    - default
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubelet
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    instance: primary
+  name: dcgm-monitor
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    honorLabels: true
+    honorTimestamps: false
+    interval: {{ scrape_interval }}
+    path: /metrics
+    port: metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - action: replace
+      targetLabel: job
+      replacement: integrations/dcgm-exporter
+    scheme: http
+  namespaceSelector:
+    matchNames:
+    - {{ k3s_namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  labels:
+    instance: primary
+  name: pvapy-monitor
+spec:
+  podMetricsEndpoints:
+  - honorLabels: true
+    interval: 5s
+    metricRelabelings:
+    - action: keep
+      regex: ^pvapy_(.*)
+      sourceLabels:
+      - __name__
+    targetPort: 9100
+    path: /metrics
+    relabelings:
+    - sourceLabels:
+      - __metrics_path__
+      targetLabel: metrics_path
+    - sourceLabels:
+      - __meta_kubernetes_pod_node_name
+      targetLabel: hostname
+    - action: replace
+      targetLabel: job
+      replacement: integrations/kubernetes/pod
+    scheme: http
+  selector:
+    matchLabels:
+  namespaceSelector:
+    matchNames:
+    - workload
