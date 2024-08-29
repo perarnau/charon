@@ -23,7 +23,7 @@ def plot_for(EXP_DIR, control_start_time):
 
     TOTAL_FRAMES_GENERATED = float(server_data['spec']['containers'][0]['args'][9])*float(server_data['spec']['containers'][0]['args'][11])
 
-    plt.rcParams.update({'font.size': 12, "font.weight": "bold"})
+    plt.rcParams.update({'font.size': 12, "font.weight": "bold", 'axes.labelsize': 'x-large'})
     plt.tight_layout()  # Add this line to adjust the layout
 
     for file in files:
@@ -51,10 +51,10 @@ def plot_for(EXP_DIR, control_start_time):
                     axs[1].set_ylabel("CPU utilization")
                     axs[1].set_xlim(left=0)  # Set lower limit of x-axis to 0
                     axs[1].legend()  # Add legend for the line plot
+                    axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
                 elif "error" in variable:
                     axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '--', color='blue', label='Control Input')
                     axs[0].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='blue', s=20, alpha=0.5)
-                    axs[0].set_xlabel("Elapsed Time (second)")  # Set X label
                     axs[0].grid(True)  # Turn on the grid
                     axs[0].set_ylabel("Buffered Frames")
                     axs[0].set_xlim(left=0)  # Set lower limit of x-axis to 0
@@ -63,6 +63,7 @@ def plot_for(EXP_DIR, control_start_time):
                     pass
                     # axs.set_ylabel(variable)
             fig.tight_layout()
+            fig.align_ylabels()
             fig.savefig(EXP_DIR+f"/{file[:-4]}.pdf")
             # plt.title(variable)  # Optional: Add a title for clarity
             # plt.show()  # Optional: Display the plot
