@@ -13,6 +13,7 @@ from kubernetes import client as CL
 from kubernetes import config as CF
 import nrm
 import time
+import tarfile
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -49,6 +50,19 @@ control_file = open(f'{EXP_DIR}/control_{now}.csv', mode='w', newline='')
 control_writer = csv.writer(control_file)
 control_writer.writerow(['time', 'variable', 'value'])
 
+def compress_files(extension):
+    tar_file = EXP_DIR+f'/compressed_iteration_{extension}.tar'
+    with tarfile.open(tar_file, 'w:gz') as tarf:
+        for root, dirs, files in os.walk(EXP_DIR):
+            for file in files:
+                if file.endswith('.csv') or file.endswith('.yaml'):
+                    file_path = os.path.join(EXP_DIR, file)
+                    # rel_path = os.path.relpath(file_path, EXP_DIR)
+                    tarf.add(file_path, arcname=os.path.basename(file_path))
+                    # tarf.add(os.path.join(root, file), os.path.relpath(os.path.join(root, file), EXP_DIR))
+                    os.remove(file_path)
+
+    print(f'Compressed files into {tar_file}')
 
 # Function to determine the number of motors needed based on the load and proportional control
 class Controller():
@@ -113,13 +127,14 @@ while pod_status != "Succeeded":
         total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
         # print("-----",container_count)
-        time_now = str(nrm.nrm_time_fromns(time.time_ns()).tv_sec) + str(nrm.nrm_time_fromns(time.time_ns()).tv_nsec)
+        time_now = str(nrm.nrm_time_fromns(time.time_ns()).tv_sec) + "." + str(nrm.nrm_time_fromns(time.time_ns()).tv_nsec)
         if int(container_count) > 0:
             process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
             control.append((t,container_count))
         control_writer.writerow([time_now, "total_needed", total_needed])
         control_writer.writerow([time_now, "error", error])
         control_writer.writerow([time_now, "control_signal", control_signal])
+        control_file.flush()  # Ensure data is written to the file
 
         queue.append((t,current_queue))
         err.append((t,error))
@@ -155,7 +170,7 @@ while pod_status != "Succeeded":
     t+=1
 
 
-
+compress_files(f"{now}")
 fig, axs = plt.subplots(3, 1, figsize=(10, 10))
 
 # Set x-axis limit for all subplots
@@ -181,9 +196,10 @@ axs[2].set_xlim(0, x_limit)
 plt.tight_layout()
 
 # plt.show()  # Display the figure
-fig.savefig(f'./experiment_data/control_plot_{now}.png')  # Save the figure as a PNG file
+fig.savefig(f'./experiment_data/backup/control_plot_{now}.png')  # Save the figure as a PNG file
 
 # End the program upon completion
 process.terminate()  # Terminate the subprocess
 frame_file.close()  # Close the CSV file
+control_file.close()
 # sys.exit(0)
