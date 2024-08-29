@@ -37,25 +37,28 @@ def plot_for(EXP_DIR, control_start_time):
                 else:
                     DATA[variable] = pd.concat([DATA[variable], variable_data])
             for variable in DATA.keys():
-                # DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
-                DATA[variable]['elapsed_time'] = DATA[variable]['time'] - control_start_time
+                DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
+                # DATA[variable]['elapsed_time'] = DATA[variable]['time'] - control_start_time
                 # fig, axs = plt.subplots(1, 1, figsize=(12, 6))
                 # fig.tight_layout()
                 # axs.plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
                 # axs.set_xlabel("Elapsed Time (second)")  # Set X label
                 # axs.grid(True)  # Turn on the grid
                 if "total_needed" in variable:
-                    axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
-                    # axs[0].set_xlabel("Elapsed Time (second)")  # Set X label
-                    axs[0].grid(True)  # Turn on the grid
-                    axs[0].set_ylabel("Number of AI instance")
-                    axs[0].set_xlim(left=0)  # Set lower limit of x-axis to 0
-                elif "error" in variable:
-                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
-                    axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
+                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '-', color='red', label='Control Output')
+                    axs[1].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='red', s=20, alpha=0.5)
                     axs[1].grid(True)  # Turn on the grid
-                    axs[1].set_ylabel("Buffered Frames")
+                    axs[1].set_ylabel("CPU utilization")
                     axs[1].set_xlim(left=0)  # Set lower limit of x-axis to 0
+                    axs[1].legend()  # Add legend for the line plot
+                elif "error" in variable:
+                    axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '--', color='blue', label='Control Input')
+                    axs[0].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='blue', s=20, alpha=0.5)
+                    axs[0].set_xlabel("Elapsed Time (second)")  # Set X label
+                    axs[0].grid(True)  # Turn on the grid
+                    axs[0].set_ylabel("Buffered Frames")
+                    axs[0].set_xlim(left=0)  # Set lower limit of x-axis to 0
+                    axs[0].legend()  # Add legend for the line plot
                 else:
                     pass
                     # axs.set_ylabel(variable)
