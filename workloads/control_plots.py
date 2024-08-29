@@ -28,6 +28,7 @@ def plot_for(EXP_DIR):
 
     for file in files:
         if "control" in file and ".csv" in file:
+            fig,axs = plt.subplots(2,1,figsize=(12,6))
             control_dump = pd.read_csv(os.path.join(EXP_DIR, file))  # Corrected to include the full path
             for variable in control_dump['variable'].unique():
                 variable_data = control_dump[control_dump['variable'] == variable]
@@ -37,20 +38,27 @@ def plot_for(EXP_DIR):
                     DATA[variable] = pd.concat([DATA[variable], variable_data])
             for variable in DATA.keys():
                 DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
-                fig, axs = plt.subplots(1, 1, figsize=(12, 6))
+                # fig, axs = plt.subplots(1, 1, figsize=(12, 6))
                 # fig.tight_layout()
-                axs.plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
-                axs.set_xlabel("Elapsed Time (second)")  # Set X label
-                axs.grid(True)  # Turn on the grid
+                # axs.plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
+                # axs.set_xlabel("Elapsed Time (second)")  # Set X label
+                # axs.grid(True)  # Turn on the grid
                 if "total_needed" in variable:
-                    axs.set_ylabel("Number of AI instance")
+                    axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
+                    # axs[0].set_xlabel("Elapsed Time (second)")  # Set X label
+                    axs[0].grid(True)  # Turn on the grid
+                    axs[0].set_ylabel("Number of AI instance")
                 elif "error" in variable:
-                    axs.set_ylabel("Buffered Frames")
+                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
+                    axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
+                    axs[1].grid(True)  # Turn on the grid
+                    axs[1].set_ylabel("Buffered Frames")
                 else:
-                    axs.set_ylabel(variable)
-                fig.savefig(EXP_DIR+f"/{variable}.pdf")
-                # plt.title(variable)  # Optional: Add a title for clarity
-                # plt.show()  # Optional: Display the plot
+                    pass
+                    # axs.set_ylabel(variable)
+            fig.savefig(EXP_DIR+f"/{file}.pdf")
+            # plt.title(variable)  # Optional: Add a title for clarity
+            # plt.show()  # Optional: Display the plot
                 
 if __name__ == "__main__":
     EXP_DIR = pwd+'/experiment_data/control/compressed_iteration_now'
