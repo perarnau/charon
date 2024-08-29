@@ -92,6 +92,8 @@ def plot_for(EXP_DIR):
             print(f"Percentage of frames processed: {total_frames_processed/TOTAL_FRAMES_GENERATED*100}")
             print(f"The total elasped time: {current_elasped_time}")
 
+            return starting_time_instant
+
 if __name__ == "__main__":
     EXP_DIR = pwd+'/experiment_data/control/compressed_iteration_now'
     plot_for(EXP_DIR)

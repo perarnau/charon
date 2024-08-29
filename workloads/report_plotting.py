@@ -16,6 +16,6 @@ for file in files:
 root,folders,files = next(os.walk(EXP_DIR))
 for fold in folders:
     CWD = EXP_DIR+fold
-    container_plots.plot_for(CWD)
-    control_plots.plot_for(CWD)
+    starting_time_instant = container_plots.plot_for(CWD)
+    control_plots.plot_for(CWD, starting_time_instant)
 

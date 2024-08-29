@@ -14,7 +14,7 @@ def find_all_dots(input_string):
     positions = [match.start() for match in matches]
     return positions
 
-def plot_for(EXP_DIR):
+def plot_for(EXP_DIR, control_start_time):
     root,folders,files = next(os.walk(EXP_DIR))
     DATA = {}
     server_file = pwd+'/sim_server/pod.yaml'
@@ -27,7 +27,7 @@ def plot_for(EXP_DIR):
     plt.tight_layout()  # Add this line to adjust the layout
 
     for file in files:
-        if "control" in file and ".csv" in file:
+        if "control" in file and ".csv" in file and ".pdf" not in file:
             fig,axs = plt.subplots(2,1,figsize=(12,6))
             control_dump = pd.read_csv(os.path.join(EXP_DIR, file))  # Corrected to include the full path
             for variable in control_dump['variable'].unique():
@@ -37,7 +37,8 @@ def plot_for(EXP_DIR):
                 else:
                     DATA[variable] = pd.concat([DATA[variable], variable_data])
             for variable in DATA.keys():
-                DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
+                # DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
+                DATA[variable]['elapsed_time'] = DATA[variable]['time'] - control_start_time
                 # fig, axs = plt.subplots(1, 1, figsize=(12, 6))
                 # fig.tight_layout()
                 # axs.plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
@@ -48,15 +49,18 @@ def plot_for(EXP_DIR):
                     # axs[0].set_xlabel("Elapsed Time (second)")  # Set X label
                     axs[0].grid(True)  # Turn on the grid
                     axs[0].set_ylabel("Number of AI instance")
+                    axs[0].set_xlim(left=0)  # Set lower limit of x-axis to 0
                 elif "error" in variable:
                     axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
                     axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
                     axs[1].grid(True)  # Turn on the grid
                     axs[1].set_ylabel("Buffered Frames")
+                    axs[1].set_xlim(left=0)  # Set lower limit of x-axis to 0
                 else:
                     pass
                     # axs.set_ylabel(variable)
-            fig.savefig(EXP_DIR+f"/{file}.pdf")
+            fig.tight_layout()
+            fig.savefig(EXP_DIR+f"/{file[:-4]}.pdf")
             # plt.title(variable)  # Optional: Add a title for clarity
             # plt.show()  # Optional: Display the plot
                 
