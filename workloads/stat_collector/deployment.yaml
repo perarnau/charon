@@ -1,42 +1,20 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sim-server
+  name: stat-collector
 spec:
   selector:
     matchLabels:
-      app: sim-server
+      app: stat-collector
   template:
     metadata:
       labels:
-        app: sim-server
+        app: stat-collector
     spec:
       containers:
-      - name: sim-server
-        resizePolicy: # for pod being updated without restarting
-        - resourceName: cpu
-          restartPolicy: NotRequired
-        - resourceName: memory
-          restartPolicy: NotRequired
-        image: classicblue/ptychonn:0.5.4
-        command: ["pvapy-ad-sim-server"]
+      - name: stat-collector
+        image: 10.31.81.1:5000/local/src:latest
+        command: ["/bin/bash"]
         args:
-        - --channel-name
-        - ad:image
-        - --n-x-pixels
-        - "512"
-        - --n-y-pixels
-        - "512"
-        - --datatype
-        - int16
-        - --frame-rate
-        - "100"
-        - --runtime
-        - "60"
-        - --disable-curses
-        resources:
-          limits:
-            memory: 2Gi
-          requests:
-            cpu: 1000m
-            memory: 500Mi
+        - -c
+        - 'while true; do sleep 1; done'

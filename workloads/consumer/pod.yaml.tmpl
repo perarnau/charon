@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: consumer-dev
+spec:
+  containers:
+  - name: consumer-dev
+    resizePolicy: # for pod being updated without restarting
+    - resourceName: cpu
+      restartPolicy: NotRequired
+    - resourceName: memory
+      restartPolicy: NotRequired
+    image: classicblue/ptychonn:0.5.4-ml-amd64
+    command: ["/bin/bash"]
+    args:
+    - -c
+    - "while true; do date; sleep 1; done"
