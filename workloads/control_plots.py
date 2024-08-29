@@ -24,6 +24,7 @@ def plot_for(EXP_DIR):
     TOTAL_FRAMES_GENERATED = float(server_data['spec']['containers'][0]['args'][9])*float(server_data['spec']['containers'][0]['args'][11])
 
     plt.rcParams.update({'font.size': 12, "font.weight": "bold"})
+    plt.tight_layout()  # Add this line to adjust the layout
 
     for file in files:
         if "control" in file and ".csv" in file:
@@ -36,14 +37,17 @@ def plot_for(EXP_DIR):
                     DATA[variable] = pd.concat([DATA[variable], variable_data])
             for variable in DATA.keys():
                 DATA[variable]['elapsed_time'] = DATA[variable]['time'] - DATA[variable]['time'].iloc[0]
-                fig, axs = plt.subplots(1, 1, figsize=(2, 6))  
+                fig, axs = plt.subplots(1, 1, figsize=(12, 6))
+                # fig.tight_layout()
                 axs.plot(DATA[variable]['elapsed_time'], DATA[variable]['value'])
                 axs.set_xlabel("Elapsed Time (second)")  # Set X label
                 axs.grid(True)  # Turn on the grid
-                if "container" in variable:
+                if "total_needed" in variable:
                     axs.set_ylabel("Number of AI instance")
                 elif "error" in variable:
                     axs.set_ylabel("Buffered Frames")
+                else:
+                    axs.set_ylabel(variable)
                 fig.savefig(EXP_DIR+f"/{variable}.pdf")
                 # plt.title(variable)  # Optional: Add a title for clarity
                 # plt.show()  # Optional: Display the plot

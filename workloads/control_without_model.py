@@ -122,7 +122,7 @@ t = 0
 pod_status = "None"
 while pod_status != "Succeeded":
     time.sleep(1)
-    if t % 5 == 0:
+    if t % 2 == 0:
         current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
         total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
