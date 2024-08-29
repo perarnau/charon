@@ -6,6 +6,8 @@ In the provisioning process, we install Kubernetes (k3s), Helm chart (Kubernetes
 
 First, update the [inventory.yaml](ansible/inventory.yaml) for "UPDATEME"s.
 
+__CAUTION: This ansible script expects the host system to have the nvidia-runtime-toolkit already installed. If not, please install the [package](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) before you run the ansible-playbook.__
+
 Then run,
 ```bash
 ansible-playbook -i ansible/inventory.yaml ansible/provisioning.yaml

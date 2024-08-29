@@ -3,33 +3,34 @@ kind: Pod
 metadata:
   name: sim-server
 spec:
-  restartPolicy: Never
   containers:
-  - name: sim-server
-    resizePolicy: # for pod being updated without restarting
+  - args:
+    - --channel-name
+    - ad:image
+    - --n-x-pixels
+    - '512'
+    - --n-y-pixels
+    - '512'
+    - --datatype
+    - int16
+    - --frame-rate
+    - '1000'
+    - --runtime
+    - '60'
+    - --disable-curses
+    command:
+    - pvapy-ad-sim-server
+    image: akhileshraj/charon:0.0.1
+    name: sim-server
+    resizePolicy:
     - resourceName: cpu
       restartPolicy: NotRequired
     - resourceName: memory
       restartPolicy: NotRequired
-    image: gemblerz/ptychonn:0.2.0
-    command: ["pvapy-ad-sim-server"]
-    args:
-    - --channel-name
-    - ad:image
-    - --n-x-pixels
-    - "512"
-    - --n-y-pixels
-    - "512"
-    - --datatype
-    - int16
-    - --frame-rate
-    - "100"
-    - --runtime
-    - "400"
-    - --disable-curses
     resources:
       limits:
         memory: 3Gi
       requests:
         cpu: 1000m
         memory: 500Mi
+  restartPolicy: Never

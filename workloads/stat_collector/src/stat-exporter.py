@@ -6,7 +6,19 @@ from pathlib import Path
 from multiprocessing import Process, Queue, Event
 
 import pvaccess
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client import start_http_server, Summary
+
+#
+# stat.update({
+#             'nFramesProcessed' : self.nFramesProcessed,
+#             'nBatchesProcessed' : self.nBatchesProcessed,
+#             'nFramesQueued' : nFramesQueued,
+#             'inferTime' : self.inferTime,
+#             'inferRate' : inferRate,
+#             'frameProcessingRate' : frameProcessingRate
+#         })
+def generate_prometheus_record(record):
+    registry = CollectorRegistry()
 
 
 def main(args):
@@ -23,6 +35,7 @@ def main(args):
         c.startMonitor()
         channels[cn] = c
 
+    start_http_server(9100)
     try:
         while True:
             s = q.get()
