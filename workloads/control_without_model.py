@@ -34,7 +34,7 @@ CONTAINER_CAPACITY = 64
 total_active_capacity = 0
 total_frames_queued = 0
 all_sensors = {}
-
+sampling_time = 2
 
 EXP_DIR = f'./experiment_data/control'
 if os.path.exists(EXP_DIR):
@@ -58,22 +58,21 @@ def compress_files(extension):
                 if file.endswith('.csv') or file.endswith('.yaml'):
                     file_path = os.path.join(EXP_DIR, file)
                     # rel_path = os.path.relpath(file_path, EXP_DIR)
-                    tarf.add(file_path, arcname=os.path.basename(file_path))
-                    # tarf.add(os.path.join(root, file), os.path.relpath(os.path.join(root, file), EXP_DIR))
-                    os.remove(file_path)
-
+                    if os.path.exists(file_path):  # Check if the file exists
+                        tarf.add(file_path, arcname=os.path.basename(file_path))
+                        os.remove(file_path)  # Remove the file after adding it to the tar
     print(f'Compressed files into {tar_file}')
 
 # Function to determine the number of motors needed based on the load and proportional control
 class Controller():
     def __init__(self):  # Changed init to __init__
-        self.K_p = 5 #1
+        self.K_p = 1 #1
         self.K_d = 3 #3
         self.previous_error = 0  # Initialize previous_error as an instance variable
 
     def PD_control(self, current_load):
         error = current_load
-        diff_error = error - self.previous_error
+        diff_error = (error - self.previous_error)/sampling_time
         control_signal = self.K_p * error + self.K_d * diff_error
         print(f"-----------------,error is {error},diff_error is {diff_error} and control_signal is {control_signal} and containers needed are {control_signal // CONTAINER_CAPACITY}")
         containers_needed_total = control_signal // CONTAINER_CAPACITY
@@ -103,6 +102,10 @@ def cb(*args):
         logging.error(f"Error in callback: {e}")  # Log the error
 
 process = subprocess.Popen(['bash', 'spawn.sh'])
+# process.wait()  # Wait for the first process to complete
+# process1 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(16)}'])
+# process1.wait()
+
 client.set_event_listener(cb)
 client.start_event_listener("") 
 
@@ -122,7 +125,7 @@ t = 0
 pod_status = "None"
 while pod_status != "Succeeded":
     time.sleep(1)
-    if t % 2 == 0:
+    if t % sampling_time == 0:
         current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
         total_needed, error, control_signal = controller.PD_control(current_queue)
         container_count = total_needed
@@ -196,7 +199,7 @@ axs[2].set_xlim(0, x_limit)
 plt.tight_layout()
 
 # plt.show()  # Display the figure
-fig.savefig(f'./experiment_data/backup/control_plot_{now}.png')  # Save the figure as a PNG file
+# fig.savefig(f'./experiment_data/backup/control_plot_{now}.png')  # Save the figure as a PNG file
 
 # End the program upon completion
 process.terminate()  # Terminate the subprocess
