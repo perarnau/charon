@@ -5,6 +5,7 @@ import subprocess
 import threading
 import queue
 import time
+import json
 import psutil
 import pvapy as pva
 from pvapy.hpc.adImageProcessor import AdImageProcessor
@@ -24,10 +25,10 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
             rpc_port=nrm.upstream_rpc_port)
         
     def __nrm_add_sensors__(self):
-        self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesprocessed.total')
-        self.nrm_batches = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.batchesprocessed.total')
-        self.nrm_infer = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.inferTime.total')
-        self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesqueued')
+        self.nrm_frames = self.nrmclient.add_sensor(f'{self.processID}.{self.processorId}.framesprocessed.total')
+        self.nrm_batches = self.nrmclient.add_sensor(f'{self.processID}.{self.processorId}.batchesprocessed.total')
+        self.nrm_infer = self.nrmclient.add_sensor(f'{self.processID}.{self.processorId}.inferTime.total')
+        self.nrm_queued = self.nrmclient.add_sensor(f'{self.processID}.{self.processorId}.framesqueued')
         self.nrm_allscope = self.nrmclient.list_scopes()[0].ptr
 
     def __nrm_now__(self):
@@ -151,8 +152,16 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
             frm_id_list.append(frm_id)
 
             while(len(batch_list)>=bsz and not self.isDone):
-                batch_chunk = (np.array(batch_list[:bsz]).astype(np.float32))
-                batch_frm_id = np.array((frm_id_list[:bsz]))
+                try:
+                    batch_chunk = (np.array(batch_list[:bsz]).astype(np.float32))
+                    batch_frm_id = np.array((frm_id_list[:bsz]))
+                except ValueError as exve:
+                    self.logger.info(json.dumps(batch_chunk, indent=4))
+                    self.logger.error(exve)
+                except Exception as ex:
+                    self.logger.info(json.dumps(batch_chunk, indent=4))
+                    self.logger.error(ex)
+
                 self.batch_q.put(batch_chunk)
                 self.frm_id_q.put(batch_frm_id)
                 batch_list=batch_list[bsz:]
@@ -191,6 +200,9 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if self.isDone:
             return
         (frameId,image,nx,ny,nz,colorMode,fieldKey) = self.reshapeNtNdArray(pvObject)
+        if image is None:
+            self.logger.error(f'{frameId} is None.')
+            return pvObject
         attributes = []
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']

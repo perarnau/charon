@@ -23,7 +23,7 @@ spec:
       runtimeClassName: nvidia
       containers:
       - name: consumer
-        image: akhileshraj/charon:0.0.1
+        image: akhileshraj/charon:new_version
         imagePullPolicy: Always
         ports:
         - containerPort: 9100

@@ -67,7 +67,7 @@ def compress_files(extension):
 class Controller():
     def __init__(self):  # Changed init to __init__
         self.K_p = 1 #1
-        self.K_d = 3 #3
+        self.K_d = 1 #3
         self.previous_error = 0  # Initialize previous_error as an instance variable
 
     def PD_control(self, current_load):
@@ -86,6 +86,7 @@ def cb(*args):
     try:
         (sensor, time, scope, value) = args 
         sensor = sensor.decode("UTF-8")
+        # print(sensor)
         timestamp = time / 1e9
         
         if "framesqueued" in sensor:
