@@ -164,6 +164,8 @@
         - numpy
         - matplotlib
         - pandas
+        - python-dateutil
+        - kubernetes
 
   - name: Install apt dependencies
     ansible.builtin.apt:

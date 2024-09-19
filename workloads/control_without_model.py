@@ -14,6 +14,7 @@ from kubernetes import config as CF
 import nrm
 import time
 import tarfile
+from consumer_status import get_deployment_status
 
 now = time.strftime("%Y-%m-%d %H:%M:%S")
 
@@ -129,15 +130,19 @@ while pod_status != "Succeeded":
     if t % sampling_time == 0:
         current_queue = total_frames_queued  # Current load demand that varies randomly every 10 seconds between 0 to 1200
         total_needed, error, control_signal = controller.PD_control(current_queue)
-        container_count = total_needed
+        container_count = min(37,total_needed)
         # print("-----",container_count)
         time_now = str(nrm.nrm_time_fromns(time.time_ns()).tv_sec) + "." + str(nrm.nrm_time_fromns(time.time_ns()).tv_nsec)
         if int(container_count) > 0:
             process2 = subprocess.Popen(['kubectl', 'scale', 'deployment', 'consumer', f'--replicas={int(container_count)}'])
             control.append((t,container_count))
-        control_writer.writerow([time_now, "total_needed", total_needed])
+        control_writer.writerow([time_now, "total_needed", container_count])
+        control_writer.writerow([time_now, "recommended", total_needed])
         control_writer.writerow([time_now, "error", error])
         control_writer.writerow([time_now, "control_signal", control_signal])
+        containers = get_deployment_status()
+        consumer_count = containers["consumer"] if "consumer" in containers else 0
+        control_writer.writerow([time_now, "consumer_spawned", consumer_count])
         control_file.flush()  # Ensure data is written to the file
 
         queue.append((t,current_queue))
@@ -169,12 +174,12 @@ while pod_status != "Succeeded":
             break
 
     except Exception as e:
-        pass
         # print(f"Error checking sim-server pod status: {e}")
+        pass
     t+=1
 
 
-compress_files(f"{now}")
+compress_files(f"{now}_{controller.K_p}_{controller.K_d}")
 fig, axs = plt.subplots(3, 1, figsize=(10, 10))
 
 # Set x-axis limit for all subplots

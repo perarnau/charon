@@ -45,10 +45,18 @@ def plot_for(EXP_DIR, control_start_time):
                 # axs.set_xlabel("Elapsed Time (second)")  # Set X label
                 # axs.grid(True)  # Turn on the grid
                 if "total_needed" in variable:
-                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '-', color='red', label='Control Output')
+                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '-', color='red', label='Recommended Control')
                     axs[1].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='red', s=20, alpha=0.5)
                     axs[1].grid(True)  # Turn on the grid
-                    axs[1].set_ylabel("CPU utilization")
+                    # axs[1].set_ylabel("CPU utilization")
+                    # axs[1].set_xlim(left=0)  # Set lower limit of x-axis to 0
+                    # axs[1].legend()  # Add legend for the line plot
+                    # axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
+                elif "consumer_spawned" in variable:
+                    axs[1].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '-', color='green', label='Actual Control')
+                    axs[1].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='green', s=20, alpha=0.5)
+                    axs[1].grid(True)  # Turn on the grid
+                    axs[1].set_ylabel("Control Signal")
                     axs[1].set_xlim(left=0)  # Set lower limit of x-axis to 0
                     axs[1].legend()  # Add legend for the line plot
                     axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
