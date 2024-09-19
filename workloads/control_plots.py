@@ -28,7 +28,7 @@ def plot_for(EXP_DIR, control_start_time):
 
     for file in files:
         if "control" in file and ".csv" in file and ".pdf" not in file:
-            fig,axs = plt.subplots(2,1,figsize=(12,6))
+            fig,axs = plt.subplots(2,1,figsize=(10,6))
             control_dump = pd.read_csv(os.path.join(EXP_DIR, file))  # Corrected to include the full path
             for variable in control_dump['variable'].unique():
                 variable_data = control_dump[control_dump['variable'] == variable]
@@ -61,7 +61,7 @@ def plot_for(EXP_DIR, control_start_time):
                     axs[1].legend()  # Add legend for the line plot
                     axs[1].set_xlabel("Elapsed Time (second)")  # Set X label
                 elif "error" in variable:
-                    axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '--', color='blue', label='Control Input')
+                    axs[0].plot(DATA[variable]['elapsed_time'], DATA[variable]['value'], '--', color='blue', label='Controlled Signal')
                     axs[0].scatter(DATA[variable]['elapsed_time'], DATA[variable]['value'], color='blue', s=20, alpha=0.5)
                     axs[0].grid(True)  # Turn on the grid
                     axs[0].set_ylabel("Buffered Frames")
