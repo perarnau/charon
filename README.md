@@ -9,5 +9,28 @@ This repository contains [scripts](ansible/) to provision a set of computing mac
 ## Provisioning a Computing Cluster
 Please refer to the [README](ansible/README.md) for details.
 
+## Install Node Resource Manager for Publishing Metrics
+Argonne's Node Resource Manager (NRM) publishes data pushed from data sources. To run,
+
+```bash
+# Run the following command inside the machine
+kubectl -n charon apply -f ansible/kubernetes/nrm.yaml
+kubectl -n charon apply -f ansible/kubernetes/nrm-k3s.yaml
+```
+
+To validate the NRM instance,
+```bash
+nrmc listen
+```
+
+You should see a heartbeat message from the NRM instance,
+```bash
+event: 1738868720562817129 daemon.tick nrm.hwloc.Machine.0 1.000000
+event: 1738868721562980582 daemon.tick nrm.hwloc.Machine.0 1.000000
+```
+
+## Run Workloads
+
+
 ## Developer Notes
 Some useful developer notes and a list of todo items for improvement can be found [here](TODO.md).
