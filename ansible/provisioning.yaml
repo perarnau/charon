@@ -7,6 +7,7 @@
   vars:
     target_k3s_version: "v1.28.7+k3s1"
     k3s_namespace: charon
+    k3s_workload_namespace: workload
     mimir_url: "http://mimir-nginx.{{ k3s_namespace }}.svc:80/api/v1/push"
     scrape_interval: 15s
     k3s_cluster_cidr: "10.31.0.0/16"
@@ -110,6 +111,14 @@
     kubernetes.core.k8s:
       kubeconfig: /etc/rancher/k3s/k3s.yaml
       name: "{{ k3s_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+
+  - name: Create the workload namespace in Kubernetes
+    kubernetes.core.k8s:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      name: "{{ k3s_workload_namespace }}"
       api_version: v1
       kind: Namespace
       state: present
