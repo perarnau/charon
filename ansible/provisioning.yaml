@@ -393,3 +393,7 @@
   #     make -j
   #     make install
   
+  - name: Restart k3s service to apply changes
+    ansible.builtin.systemd:
+      name: k3s
+      state: restarted
