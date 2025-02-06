@@ -296,7 +296,7 @@
     ansible.builtin.git:
       repo: 'https://github.com/anlsys/libnrm.git'
       dest: ~{{ ansible_user }}/dependencies/libnrm
-      version: feature/prometheus-exporter
+      # version: feature/prometheus-exporter
   
   - name: Install bats
     ansible.builtin.shell: |
