@@ -24,10 +24,10 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
             rpc_port=nrm.upstream_rpc_port)
         
     def __nrm_add_sensors__(self):
-        self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesprocessed.total')
-        self.nrm_batches = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.batchesprocessed.total')
-        self.nrm_infer = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.inferTime.total')
-        self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processorId}.framesqueued')
+        self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.framesprocessed.total')
+        self.nrm_batches = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.batchesprocessed.total')
+        self.nrm_infer = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.inferTime.total')
+        self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.framesqueued')
         self.nrm_allscope = self.nrmclient.list_scopes()[0].ptr
 
     def __nrm_now__(self):
@@ -134,7 +134,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 break
             try:
                 frm_id, in_frame, ny, nx, attr = self.tq_frame_q.get(block=True, timeout=waitTime)
-                self.__instrumentation_queued(self.tq_frame_q.qsize())
+                # self.__instrumentation_queued(self.tq_frame_q.qsize())
             except queue.Empty:
                 continue
             except KeyboardInterrupt:
@@ -165,6 +165,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 self.__instrumentation_batchesprocessed(self.nBatchesProcessed, 1)
                 self.nFramesProcessed += bsz
                 self.__instrumentation_framesprocessed(self.nFramesProcessed, bsz)
+                self.__instrumentation_queued(self.tq_frame_q.qsize())
                 self.inferTime += t1-t0
                 self.__instrumentation_infertime(self.inferTime, t1-t0)
 
@@ -195,7 +196,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         if 'attribute' in pvObject:
             attributes = pvObject['attribute']
         self.tq_frame_q.put((frameId, image, ny, nx, attributes))
-        self.__instrumentation_queued(self.tq_frame_q.qsize())
+        # self.__instrumentation_queued(self.tq_frame_q.qsize())
         return pvObject
 
     def resetStats(self):

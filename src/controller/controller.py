@@ -103,6 +103,9 @@ class Controller:
             total_needed, error, control_signal = self.pid_control(error=total_queued_frames)
             self.take_action(total_needed)
 
+            # Take a short sleep
+            time.sleep(0.5)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Charon Controller.')

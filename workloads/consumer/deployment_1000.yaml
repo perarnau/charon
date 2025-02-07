@@ -53,7 +53,7 @@ spec:
           value: '3456'
         - name: NRM_UPSTREAM_PUB_PORT
           value: '2345'
-        image: akhileshraj/charon:0.0.1
+        image: gemblerz/ptychonn:trt861-amd64
         imagePullPolicy: Always
         name: consumer
         ports:

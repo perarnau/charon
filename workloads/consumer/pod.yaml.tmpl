@@ -10,8 +10,24 @@ spec:
       restartPolicy: NotRequired
     - resourceName: memory
       restartPolicy: NotRequired
-    image: classicblue/ptychonn:0.5.4-ml-amd64
+    image: gemblerz/ptychonn:trt861-amd64
+    imagePullPolicy: Always
     command: ["/bin/bash"]
     args:
     - -c
     - "while true; do date; sleep 1; done"
+    env:
+      - name: NRM_UPSTREAM_URI
+        value: tcp://nrm.charon
+      - name: NRM_UPSTREAM_RPC_PORT
+        value: '3456'
+      - name: NRM_UPSTREAM_PUB_PORT
+        value: '2345'
+    ports:
+    - containerPort: 9100
+    resources:
+      limits:
+        cpu: 1000m
+      requests:
+        cpu: 1000m
+  runtimeClassName: nvidia
