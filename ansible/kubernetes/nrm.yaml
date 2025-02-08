@@ -18,7 +18,7 @@ spec:
         node-role.kubernetes.io/master: "true"
       containers:
         - name: nrm
-          image: gemblerz/nrm:0.1.0
+          image: gemblerz/nrm:0.1.1
           imagePullPolicy: Always
           command: ["nrmd"]
           args:
