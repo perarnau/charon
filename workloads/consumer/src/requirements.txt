@@ -6,3 +6,4 @@ pvapy==5.3.*
 psutil
 nano
 prometheus-client
+pycuda

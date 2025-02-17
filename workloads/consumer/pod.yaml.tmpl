@@ -10,8 +10,8 @@ spec:
       restartPolicy: NotRequired
     - resourceName: memory
       restartPolicy: NotRequired
-    image: gemblerz/ptychonn:trt861-amd64
-    imagePullPolicy: Always
+    image: local/ptychonn:trt
+    imagePullPolicy: Never
     command: ["/bin/bash"]
     args:
     - -c

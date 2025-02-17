@@ -19,3 +19,8 @@ Then run,
 ```bash
 ansible-playbook -i ansible/inventory.yaml ansible/provisioning.yaml
 ```
+
+If sudo password is required,
+```bash
+ansible-playbook -i ansible/inventory.yaml ansible/provisioning.yaml --ask-become-pass
+```

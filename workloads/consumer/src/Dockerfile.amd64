@@ -73,8 +73,8 @@ ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychoNN_8_128_fp16.t
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt75.trt /app/model_512_fp32.trt
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt75.trt /app/model_512_fp16.trt
-ADD ptychonn_512_bsz8_fp16_trt861.trt /app/model_512_fp16.trt
-ADD ptychonn_512_bsz8_fp32_trt861.trt /app/model_512_fp32.trt
+ADD ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
+ADD ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
 ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/diff_scan_810.npy /app/scan.npy
 
 COPY requirements.txt /app
