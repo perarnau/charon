@@ -22,6 +22,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
             uri=nrm.upstream_uri,
             pub_port=nrm.upstream_pub_port,
             rpc_port=nrm.upstream_rpc_port)
+        self.nrm_lock = mp.Lock()
         
     def __nrm_add_sensors__(self):
         self.nrm_frames = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.framesprocessed.total')
@@ -34,23 +35,27 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         return nrm.nrm_time_fromns(time.time_ns())
 
     def __instrumentation_framesprocessed(self, total, delta):
-        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_frames,
-                                  self.nrm_allscope, total)
+        with self.nrm_lock:
+            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_frames,
+                                    self.nrm_allscope, total)
         self.promnFramesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_batchesprocessed(self, total, delta):
-        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_batches,
-                                  self.nrm_allscope, total)
+        with self.nrm_lock:
+            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_batches,
+                                    self.nrm_allscope, total)
         self.promnBatchesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_infertime(self, total, delta):
-        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
-                                  self.nrm_allscope, total)
+        with self.nrm_lock:
+            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
+                                    self.nrm_allscope, total)
         self.prominferTime.labels(self.processorId).inc(delta)
 
     def __instrumentation_queued(self, f):
-        self.nrmclient.send_event(self.__nrm_now__(), self.nrm_queued,
-                                  self.nrm_allscope, f)
+        with self.nrm_lock:
+            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_queued,
+                                    self.nrm_allscope, f)
         self.promnFramesQueued.labels(self.processorId).set(f)
 
     def __init__(self, configDict={}):
