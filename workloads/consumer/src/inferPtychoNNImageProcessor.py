@@ -29,6 +29,7 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.nrm_batches = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.batchesprocessed.total')
         self.nrm_infer = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.inferTime.total')
         self.nrm_queued = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.framesqueued')
+        self.nrm_rate = self.nrmclient.add_sensor(f'ptychonn.{self.processID}.frameprocessingrate')
         self.nrm_allscope = self.nrmclient.list_scopes()[0].ptr
 
     def __nrm_now__(self):
@@ -51,6 +52,12 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
             self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
                                     self.nrm_allscope, total)
         self.prominferTime.labels(self.processorId).inc(delta)
+
+    def __instrumentation_processing_rate(self, rate):
+        with self.nrm_lock:
+            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_rate,
+                                    self.nrm_allscope, rate)
+        self.promnFramesProcessingRate.labels(self.processorId).set(rate)
 
     def __instrumentation_queued(self, f):
         with self.nrm_lock:
@@ -84,6 +91,11 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.prominferTime = Counter(
             "pvapy_inference_time_acc",
             "Accumulated elapsed milliseconds for inference",
+            labelnames=["pvapy_processor_id",]
+        )
+        self.promnFramesProcessingRate = Gauge(
+            "pvapy_frame_processingrate",
+            "Processing rate of frames",
             labelnames=["pvapy_processor_id",]
         )
         self.promnFramesQueued = Gauge(
@@ -173,6 +185,8 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
                 self.__instrumentation_queued(self.tq_frame_q.qsize())
                 self.inferTime += t1-t0
                 self.__instrumentation_infertime(self.inferTime, t1-t0)
+                frameProcessingRate = self.nFramesProcessed/self.inferTime
+                self.__instrumentation_processing_rate(frameProcessingRate)
 
         try:
             self.logger.debug(f'Stopping infer engine')
