@@ -12,7 +12,13 @@ def engine_build_from_onnx(onnx_mdl, fp16=False):
         config.set_flag(trt.BuilderFlag.FP16)
     else:
         config.set_flag(trt.BuilderFlag.TF32)
-    config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
+
+    # TensorRT v8.4 and later requires the workspace size to be set in the config.
+    # In earlier versions, this was set in the builder.
+    try:
+        config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
+    except AttributeError:
+        config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 * (1 << 30))
 
     network = builder.create_network(EXPLICIT_BATCH)
     parser  = trt.OnnxParser(network, TRT_LOGGER)
@@ -24,7 +30,12 @@ def engine_build_from_onnx(onnx_mdl, fp16=False):
     if not success:
         return None
 
-    return builder.build_engine(network, config)
+    try:
+        return builder.build_engine(network, config)
+    except AttributeError:
+        # TensorRT v8.4 and later requires the engine to be built in a different way.
+        # In earlier versions, this was done in the builder.
+        return builder.build_serialized_network(network, config)
 
 
 def create_engine_from_onnx(onnx_mdl, path="out.trt", fp16=False):
@@ -33,7 +44,12 @@ def create_engine_from_onnx(onnx_mdl, path="out.trt", fp16=False):
         return None
 
     with open(path, mode='wb') as f:
-        f.write(bytearray(out.serialize()))
+        try:
+            f.write(bytearray(out.serialize()))
+        except AttributeError:
+            # TensorRT v8.4 and later requires the engine to be serialized in a different way.
+            # In earlier versions, this was done in the builder.
+            f.write(bytearray(out))
         print("generating file done!")
 
 
