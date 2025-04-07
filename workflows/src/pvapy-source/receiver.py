@@ -23,6 +23,7 @@ def myprocess(pv):
     dims = pv['dimension']
     print(f"MyProcess Received image with ID: {imageId}, dimensions: {dims}")
     print(type(pv))
+    print(pv["attribute"])
 
 pva_object_queue = pva.PvObjectQueue(100)
 c = MonitorDataReceiver(

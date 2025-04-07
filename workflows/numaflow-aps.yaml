@@ -11,16 +11,28 @@ spec:
             image: local/pvapy-udsource:0.0.1
             resources: {}
             imagePullPolicy: Never
+            env:
+            - name: PVA_INPUT_CHANNEL
+              value: "pva:image"
+            - name: PVA_QUEUE_SIZE
+              value: "1000"
+            - name: DEBUG
+              value: "true"
       scale:
         min: 1
-      updateStrategy: {}
+        max: 5
     - name: cat
       udf:
-        builtin:
-          name: cat
+        container:
+          image: local/pvapy-udf:0.0.1
+          resources: {}
+          imagePullPolicy: Never
       scale:
         min: 1
-      updateStrategy: {}
+        max: 5
+      limits:
+        readBatchSize: 1
+      runtimeClassName: nvidia
     - name: out
       sink:
         log: {}

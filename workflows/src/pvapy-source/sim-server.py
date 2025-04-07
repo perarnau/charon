@@ -1,9 +1,9 @@
-import pickle
+import os
 import argparse
 from datetime import datetime
-import multiprocessing as mp
 import logging
 
+import numpy as np
 from pynumaflow.shared.asynciter import NonBlockingIterator
 from pynumaflow.sourcer import (
     ReadRequest,
@@ -18,7 +18,7 @@ from pynumaflow.sourcer import (
 )
 import pvaccess as pva
 from pvapy.hpc.monitorDataReceiver import MonitorDataReceiver
-
+from pvapy.utility.adImageUtility import AdImageUtility
 
 
 def parse_arguments():
@@ -29,8 +29,12 @@ def parse_arguments():
         argparse.Namespace: Parsed arguments including frame rate, resolution, and runtime.
     """
     parser = argparse.ArgumentParser(description="PvaPy Async Source")
-    parser.add_argument("--input-channel", type=str, default="pva:image", help="PvaPy input channel (default: pva:image)")
-    parser.add_argument("--queue-size", type=int, default=1000, help="Size of the queue (default: 1000)")
+    parser.add_argument("--input-channel", type=str,
+        default=os.getenv("PVA_INPUT_CHANNEL", "pva:image"),
+        help="PvaPy input channel (default: pva:image)")
+    parser.add_argument("--queue-size", type=int,
+        default=os.getenv("PVA_QUEUE_SIZE", 1000),
+        help="Size of the queue (default: 1000)")
     return parser.parse_args()
 
 
@@ -42,18 +46,13 @@ class PvaPyAsyncSource(Sourcer):
     def __init__(self, pva_channel: str, queue_size: int):
         """
         to_ack_set: Set to maintain a track of the offsets yet to be acknowledged
-        read_idx : the offset idx till where the messages have been read
         """
         self.to_ack_set = set()
-        self.read_idx = 0
 
         self.pva_channel = pva_channel
         self.queue_size = queue_size
         self.pva_monitor = None
         self.pva_object_queue = pva.PvObjectQueue(queue_size)
-        # TODO: We may need to limit the queue size because
-        #   this might take more memory than expected
-        # self.tq_frame_q = mp.Queue(maxsize=-1)
 
     def startMonitor(self):
         if self.pva_monitor is None:
@@ -64,6 +63,7 @@ class PvaPyAsyncSource(Sourcer):
                 pvRequest="",
                 providerType=pva.PVA)
         self.pva_monitor.start()
+        logging.info(f"Started monitor on Pva channel: {self.pva_channel}")
 
     def stopMonitor(self):
         if self.pva_monitor is not None:
@@ -75,7 +75,6 @@ class PvaPyAsyncSource(Sourcer):
         :param pv: The PV data to process.
         """
         pass
-        # (frameId,image,nx,ny,nz,colorMode,fieldKey) = self.reshapeNtNdArray(pvObject)
 
     def get_pv(self):
         """
@@ -101,27 +100,42 @@ class PvaPyAsyncSource(Sourcer):
 
         for x in range(datum.num_records):
             # Get the PV data from the queue
-            pv = self.get_pv()
-            if pv is None:
+            # TODO: We should not return immediately if the queue is empty because it causes
+            #   this callback to be called multiple times in quick succession.
+            #   We should wait for the queue to have data before returning unless timeout is reached.
+            pvObject = self.get_pv()
+            if pvObject is None:
                 # No data available, break the loop
                 logging.info("No data available in the queue.")
-                break
+                return
+                
+            (frameId,image,nx,ny,nz,colorMode,fieldKey) = AdImageUtility.reshapeNtNdArray(pvObject)
+            if image is None:
+                logging.info(f"Frame ID {frameId}: Image is None")
+                continue
 
-            frame_id = pv['uniqueId']
-            headers = {"x-txn-id": str(frame_id)}
-            # Convert pv (pva.PvObject) into a bytearray
-            pv_bytearray = pickle.dumps(pv)
+            logging.debug(f'Frame ID {frameId}: Image shape: {image.shape}, Color Mode: {colorMode}, Field Key: {fieldKey}')
+            logging.debug(f"type: {type(image)}, shape: {image.shape}, dtype: {image.dtype}, size: {image.size}")
+            headers = {"x-txn-id": str(frameId).encode()}
+
+            # TODO: Numaflow does not seem to support nested dictionaries in the headers.
+            #   To work around this, we can flatten the dictionary or use a different approach.
+            # if 'attribute' in pvObject:
+                # pvOjbect['attribute'] is a list of attributes
+                # headers["pva-attribute"] = pvObject['attribute'][0]
             
             await output.put(
                 Message(
-                    payload=pv_bytearray,
-                    offset=Offset.offset_with_default_partition_id(str(frame_id).encode()),
+                    # We need to specify the data type such that
+                    # the receiver can decode the data correctly.
+                    # The data type is set to int16 for the image data.
+                    payload=image.astype(np.int16).tobytes(),
+                    offset=Offset.offset_with_default_partition_id(str(frameId).encode()),
                     event_time=datetime.now(),
                     headers=headers,
                 )
             )
-            self.to_ack_set.add(str(frame_id))
-            self.read_idx += 1
+            self.to_ack_set.add(str(frameId))
 
     async def ack_handler(self, ack_request: AckRequest):
         """
@@ -147,7 +161,7 @@ class PvaPyAsyncSource(Sourcer):
 if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if os.getenv("DEBUG") else logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler()
@@ -160,7 +174,7 @@ if __name__ == "__main__":
     try:
         grpc_server.start()
     except Exception as e:
-        print(f"Error starting gRPC server: {e}")
+        logging.error(f"Error starting gRPC server: {e}")
     finally:
         ud_source.stopMonitor()
-        print("Server stopped.")
+        logging.info("Server stopped.")
