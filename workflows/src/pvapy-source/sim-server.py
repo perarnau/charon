@@ -76,13 +76,13 @@ class PvaPyAsyncSource(Sourcer):
         """
         pass
 
-    def get_pv(self):
+    def get_pv(self, timeout=0.01):
         """
         Get the PV data from the queue.
         :param pv: The PV data to process.
         """
         try:
-            return self.pva_object_queue.get()
+            return self.pva_object_queue.waitForGet(timeout)
         except pva.QueueEmpty:
             return None
         except Exception as e:
@@ -100,10 +100,10 @@ class PvaPyAsyncSource(Sourcer):
 
         for x in range(datum.num_records):
             # Get the PV data from the queue
-            # TODO: We should not return immediately if the queue is empty because it causes
-            #   this callback to be called multiple times in quick succession.
-            #   We should wait for the queue to have data before returning unless timeout is reached.
-            pvObject = self.get_pv()
+            # The queue is a blocking queue, so it will wait for the data to be available
+            # If the queue is empty, it will wait for the timeout period
+            # If the timeout period is reached, it will return None
+            pvObject = self.get_pv(timeout=1.)
             if pvObject is None:
                 # No data available, break the loop
                 logging.info("No data available in the queue.")
