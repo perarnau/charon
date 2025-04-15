@@ -1,5 +1,6 @@
 import os
 import argparse
+import time
 from datetime import datetime
 import logging
 
@@ -76,13 +77,29 @@ class PvaPyAsyncSource(Sourcer):
         """
         pass
 
-    def get_pv(self, timeout=0.01):
+    def get_pv_with_timeout(self, timeout=1.0):
+        """
+        Retrieve a PV object from the queue with a timeout.
+        :param timeout: Time in seconds to wait for a PV object.
+        :return: The PV object if available, otherwise None.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            pvObject = self.get_pv()
+            if pvObject is not None:
+                return pvObject
+            else:
+                time.sleep(0.01)
+        logging.info("Timeout reached while waiting for PV object.")
+        return None
+
+    def get_pv(self):
         """
         Get the PV data from the queue.
         :param pv: The PV data to process.
         """
         try:
-            return self.pva_object_queue.waitForGet(timeout)
+            return self.pva_object_queue.get()
         except pva.QueueEmpty:
             return None
         except Exception as e:
@@ -103,9 +120,9 @@ class PvaPyAsyncSource(Sourcer):
             # The queue is a blocking queue, so it will wait for the data to be available
             # If the queue is empty, it will wait for the timeout period
             # If the timeout period is reached, it will return None
-            pvObject = self.get_pv(timeout=1.)
+            pvObject = self.get_pv_with_timeout(timeout=1.)
             if pvObject is None:
-                # No data available, break the loop
+                # No data available, break the loop after timeout
                 logging.info("No data available in the queue.")
                 return
                 
