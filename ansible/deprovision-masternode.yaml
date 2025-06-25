@@ -1,0 +1,178 @@
+---
+- name: Deprovisioning A Master Node
+  hosts: localhost
+  gather_facts: false
+  become: true
+
+  vars:
+    k3s_namespace: default
+    k3s_cluster_cidr: "10.31.0.0/16"
+    k3s_service_cidr: "10.32.0.0/16"
+
+  tasks:
+  - name: Check if k3s is installed
+    ansible.builtin.command: k3s --version
+    register: k3s_check
+    changed_when: false
+    ignore_errors: true
+
+  - name: Check if Nvidia GPU is available
+    ansible.builtin.command: nvidia-smi --list-gpus
+    register: list_of_nvidia_gpus
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set a number of available Nvidia GPUs
+    when: list_of_nvidia_gpus.rc == 0
+    ansible.builtin.set_fact:
+      number_of_available_nvidia_gpu: "{{ list_of_nvidia_gpus.stdout_lines | length }}"
+
+  # Kubernetes/k3s cleanup
+  - name: Remove Nvidia DCGM from Kubernetes
+    when: k3s_check.rc == 0 and list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      state: absent
+    ignore_errors: true
+
+  - name: Stop k3s service
+    when: k3s_check.rc == 0
+    ansible.builtin.systemd:
+      name: k3s
+      state: stopped
+    ignore_errors: true
+
+  - name: Disable k3s service
+    when: k3s_check.rc == 0
+    ansible.builtin.systemd:
+      name: k3s
+      enabled: false
+    ignore_errors: true
+
+  - name: Uninstall k3s
+    when: k3s_check.rc == 0
+    ansible.builtin.shell: /usr/local/bin/k3s-uninstall.sh
+    ignore_errors: true
+
+  # User configuration cleanup
+  - name: Remove KUBECONFIG from user bashrc
+    when: ansible_user is defined
+    ansible.builtin.lineinfile:
+      path: ~{{ ansible_user }}/.bashrc
+      regexp: 'export KUBECONFIG=~/.kube/config # Added by k3s-ansible'
+      state: absent
+    ignore_errors: true
+
+  - name: Remove user .kube directory
+    when: ansible_user is defined
+    ansible.builtin.file:
+      path: ~{{ ansible_user }}/.kube
+      state: absent
+    ignore_errors: true
+
+  # Package cleanup
+  - name: Remove Nvidia container toolkit
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt:
+      pkg:
+      - nvidia-container-toolkit
+      state: absent
+      autoremove: true
+    ignore_errors: true
+
+  - name: Remove the nvidia PPA repository
+    apt_repository:
+      repo: 'ppa:graphics-drivers/ppa'
+      state: absent
+    ignore_errors: true
+
+  # Python packages cleanup
+  - name: Remove Python kubernetes package
+    ansible.builtin.shell: pip3 uninstall -y kubernetes
+    ignore_errors: true
+
+  # Optional: Remove base packages (commented out to avoid breaking system)
+  # - name: Remove base packages
+  #   ansible.builtin.apt:
+  #     pkg:
+  #     - curl
+  #     - python3-pip
+  #     - apt-transport-https
+  #     - net-tools
+  #     state: absent
+  #     autoremove: true
+  #   ignore_errors: true
+
+  # Firewall cleanup
+  - name: Remove Kubernetes api and metrics server ports from firewall
+    ansible.builtin.command: firewall-cmd --permanent --remove-port=6443/tcp --remove-port=10250/tcp
+    ignore_errors: true
+
+  - name: Remove Kubernetes Pod and Service IPs from firewall
+    ansible.builtin.command: firewall-cmd --permanent --zone=trusted --remove-source "{{ k3s_cluster_cidr }}" --remove-source "{{ k3s_service_cidr }}"
+    ignore_errors: true
+
+  - name: Reload firewall to apply removed rules
+    ansible.builtin.command: firewall-cmd --reload
+    ignore_errors: true
+
+  # Helm cleanup
+  - name: Remove Helm binary
+    ansible.builtin.file:
+      path: /usr/local/bin/helm
+      state: absent
+    ignore_errors: true
+
+  # Clean up any remaining k3s files
+  - name: Remove k3s data directory
+    ansible.builtin.file:
+      path: /var/lib/rancher/k3s
+      state: absent
+    ignore_errors: true
+
+  - name: Remove k3s configuration directory
+    ansible.builtin.file:
+      path: /etc/rancher/k3s
+      state: absent
+    ignore_errors: true
+
+  - name: Remove k3s systemd service file
+    ansible.builtin.file:
+      path: /etc/systemd/system/k3s.service
+      state: absent
+    ignore_errors: true
+
+  - name: Reload systemd daemon
+    ansible.builtin.systemd:
+      daemon_reload: true
+    ignore_errors: true
+
+  # Optional cleanup tasks
+  - name: Update apt cache after repository changes
+    ansible.builtin.apt:
+      update_cache: yes
+    ignore_errors: true
+
+  - name: Clean apt package cache
+    ansible.builtin.apt:
+      autoclean: yes
+      autoremove: yes
+    ignore_errors: true
+
+  - name: Display deprovision completion message
+    ansible.builtin.debug:
+      msg: |
+        ✅ Deprovision completed!
+        
+        The following components have been removed:
+        - k3s Kubernetes cluster
+        - Nvidia DCGM (if applicable)
+        - User kubernetes configuration
+        - Firewall rules for Kubernetes
+        - Helm binary
+        - k3s data and configuration files
+        
+        Note: Base system packages (curl, python3-pip, etc.) were left intact
+        to avoid breaking the system. Remove them manually if needed.

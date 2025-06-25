@@ -1,0 +1,173 @@
+---
+- name: Provisioning A Master Node
+  hosts: localhost
+  gather_facts: true
+  become: true
+
+  vars:
+    target_k3s_version: "v1.33.1+k3s1"
+    k3s_namespace: default
+    scrape_interval: 15s
+    k3s_cluster_cidr: "10.31.0.0/16"
+    k3s_service_cidr: "10.32.0.0/16"
+
+  tasks:
+  # NOTE: this is only for Chameleon machines as their OS images block ingress/egress by default
+  - name: Add Kubernetes Pod and Service IPs in the firewall
+    ansible.builtin.command: firewall-cmd --permanent --zone=trusted --add-source "{{ k3s_cluster_cidr }}" --add-source "{{ k3s_service_cidr }}"
+    ignore_errors: true
+
+  - name: Add Kubernetes api and metrics server ports in the firewall
+    ansible.builtin.command: firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp
+    ignore_errors: true
+
+  - name: Reload firewall for newly added rules
+    ansible.builtin.command: firewall-cmd --reload
+    ignore_errors: true
+      
+  # TODO: we would want to check if the host OS is Debian/Ubuntu
+  - name: Install base packages
+    ansible.builtin.apt:
+      pkg:
+      - curl
+      - python3-pip
+      - apt-transport-https
+      - net-tools
+      # add other packages here
+  
+  - name: Upgrade pip
+    ansible.builtin.pip:
+      name: pip
+      state: latest
+
+  - name: Install Python packages
+    ansible.builtin.shell: pip3 install kubernetes --user
+    become: true
+    become_user: "{{ ansible_user | default('root') }}"
+    when: ansible_user is defined
+
+  # TODO: we may want to skip this if already exists
+  - name: Get k3s installed version
+    ansible.builtin.command: k3s --version
+    register: k3s_version_output
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set k3s installed version
+    when: k3s_version_output.rc == 0
+    ansible.builtin.set_fact:
+      installed_k3s_version: "{{ k3s_version_output.stdout_lines[0].split(' ')[2] }}"
+
+  - name: Install Kubernetes (k3s), skipped if the same version already installed
+    ansible.builtin.shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ target_k3s_version }}" K3S_CLUSTER_SECRET=4tX0DUZ0uQknRtVUAKjt INSTALL_K3S_EXEC="server --cluster-cidr {{ k3s_cluster_cidr }} --service-cidr {{ k3s_service_cidr }}" sh -
+    args:
+      executable: /bin/bash
+    when: k3s_version_output.rc != 0 or installed_k3s_version is version(target_k3s_version, '<')
+  
+  - name: Install Helm chart
+    ansible.builtin.shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    args:
+      executable: /bin/bash
+  
+  - name: Ensure k3s systemd is in running state
+    service:
+      name: k3s
+      state: started
+    register: k3sDetails
+    until: k3sDetails.status.ActiveState == "active"
+    retries: 10
+    delay: 50
+
+  - name: Create directory .kube
+    when: ansible_user is defined
+    ansible.builtin.file:
+      path: ~{{ ansible_user }}/.kube
+      state: directory
+      owner: "{{ ansible_user }}"
+      mode: "u=rwx,g=rx,o="
+
+  - name: Copy config file to user home directory
+    when: ansible_user is defined
+    ansible.builtin.copy:
+      src: /etc/rancher/k3s/k3s.yaml
+      dest: ~{{ ansible_user }}/.kube/config
+      remote_src: true
+      owner: "{{ ansible_user }}"
+      mode: "u=rw,g=,o="
+
+  - name: Configure default KUBECONFIG for user
+    when: ansible_user is defined
+    ansible.builtin.lineinfile:
+      path: ~{{ ansible_user }}/.bashrc
+      regexp: 'export KUBECONFIG=~/.kube/config'
+      line: 'export KUBECONFIG=~/.kube/config # Added by k3s-ansible'
+      state: present
+
+  - name: Wait for kubeconfig to be accessible
+    when: ansible_user is defined
+    ansible.builtin.wait_for:
+      path: "~{{ ansible_user }}/.kube/config"
+      timeout: 30
+
+  # Fallback: Set readable permissions on the original kubeconfig if ansible_user is not defined
+  - name: Set readable permissions on k3s kubeconfig (fallback)
+    when: ansible_user is not defined
+    ansible.builtin.file:
+      path: /etc/rancher/k3s/k3s.yaml
+      mode: '0644'
+
+  - name: Create our namespace in Kubernetes
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: "{{ k3s_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+  
+  - name: Check if Nvidia GPU is available
+    ansible.builtin.command: nvidia-smi --list-gpus
+    register: list_of_nvidia_gpus
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set a number of available Nvidia GPUs
+    when: list_of_nvidia_gpus.rc == 0
+    ansible.builtin.set_fact:
+      number_of_available_nvidia_gpu: "{{ list_of_nvidia_gpus.stdout_lines | length }}"
+
+  - name: Check number of GPUs
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    debug:
+      msg: "Found {{ number_of_available_nvidia_gpu }} GPUs"
+
+  - name: Add the nvidia PPA repository
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    apt_repository:
+      repo: 'ppa:graphics-drivers/ppa'
+      state: present
+
+  - name: Install Nvidia container toolkit
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt:
+      pkg:
+      - nvidia-container-toolkit
+
+  - name: Add Nvidia DCGM to Helm chart
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm_repository:
+      name: gpu-helm-charts
+      repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Deploy Nvidia DCGM in Kubernetes
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: gpu-helm-charts/dcgm-exporter
+      set_values:
+      - value: runtimeClassName=nvidia
+        value_type: string
+    become: "{{ false if ansible_user is defined else true }}"

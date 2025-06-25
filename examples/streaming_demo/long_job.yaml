@@ -1,0 +1,51 @@
+name: "Long Running Ansible Task"
+description: "An Ansible task that produces output over an extended period"
+playbook: |
+  ---
+  - name: Long Running Demo Playbook
+    hosts: localhost
+    gather_facts: false
+    connection: local
+
+    vars:
+      task_count: "{{ task_count | default(20) | int }}"
+      sleep_interval: "{{ sleep_interval | default(2) | int }}"
+      checkpoint_interval: "{{ checkpoint_interval | default(5) | int }}"
+
+    tasks:
+      - name: Start long running task
+        debug:
+          msg: "🚀 Starting long running Ansible task..."
+
+      - name: Process items in loop
+        debug:
+          msg: "📊 Processing item {{ item }}/{{ task_count }} - {{ ansible_date_time.time }}"
+        loop: "{{ range(1, task_count + 1) | list }}"
+
+      - name: Show checkpoint when applicable
+        debug:
+          msg: "⚡ Checkpoint reached at item {{ item }}"
+        loop: "{{ range(1, task_count + 1) | list }}"
+        when: item % (checkpoint_interval | int) == 0
+
+      - name: Wait between processing batches
+        pause:
+          seconds: "{{ sleep_interval }}"
+        loop: "{{ range(1, (task_count / 5) | int + 1) | list }}"
+
+      - name: Show completion message
+        debug:
+          msg: "✅ Long running Ansible task completed successfully!"
+inventory:
+  - "localhost"
+variables:
+  task_count: "20"
+  sleep_interval: "2"
+  checkpoint_interval: "5"
+priority: 5
+timeout: 300
+tags:
+  - "example"
+  - "long-running"
+  - "streaming"
+  - "ansible"

@@ -1,0 +1,25 @@
+---
+- name: Long Running Demo Playbook
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    task_count: "{{ task_count | default(20) | int }}"
+    sleep_interval: "{{ sleep_interval | default(2) | int }}"
+    checkpoint_interval: "{{ checkpoint_interval | default(5) | int }}"
+
+  tasks:
+    - name: Start long running task
+      debug:
+        msg: "🚀 Starting long running Ansible task..."
+
+    - name: Process items in loop
+      include_tasks: process_item.yml
+      loop: "{{ range(1, task_count + 1) | list }}"
+      loop_control:
+        loop_var: item_number
+
+    - name: Show completion message
+      debug:
+        msg: "✅ Long running Ansible task completed successfully!"
