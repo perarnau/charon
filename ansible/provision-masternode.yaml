@@ -171,3 +171,30 @@
       - value: runtimeClassName=nvidia
         value_type: string
     become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create numaflow-system namespace in Kubernetes
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: numaflow-system
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Apply numaflow install.yaml in numaflow-system namespace
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      src: https://raw.githubusercontent.com/numaproj/numaflow/main/config/install.yaml
+      namespace: numaflow-system
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Apply numaflow isbsvc-jetstream.yaml in numaflow-system namespace
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      src: https://raw.githubusercontent.com/numaproj/numaflow/main/examples/0-isbsvc-jetstream.yaml
+      namespace: numaflow-system
+    become: "{{ false if ansible_user is defined else true }}"
+
+  
