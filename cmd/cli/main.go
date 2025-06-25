@@ -68,6 +68,12 @@ func (c *CLI) registerCommands() {
 		Description: "Exit the CLI",
 		Execute:     c.executeExit,
 	}
+
+	c.commands["quit"] = Command{
+		Name:        "quit",
+		Description: "Exit the CLI",
+		Execute:     c.executeExit,
+	}
 }
 
 // executor handles command execution
