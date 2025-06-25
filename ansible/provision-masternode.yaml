@@ -194,7 +194,7 @@
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
       state: present
       src: https://raw.githubusercontent.com/numaproj/numaflow/main/examples/0-isbsvc-jetstream.yaml
-      namespace: numaflow-system
+      namespace: "{{ k3s_namespace }}"
     become: "{{ false if ansible_user is defined else true }}"
 
   

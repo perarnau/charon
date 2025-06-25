@@ -47,13 +47,13 @@ func (c *CLI) registerCommands() {
 
 	c.commands["run"] = Command{
 		Name:        "run",
-		Description: "Run a job or task",
+		Description: "Apply a Numaflow pipeline to Kubernetes cluster",
 		Execute:     c.executeRun,
 	}
 
 	c.commands["stop"] = Command{
 		Name:        "stop",
-		Description: "Stop a running job or service",
+		Description: "Stop a Numaflow pipeline",
 		Execute:     c.executeStop,
 	}
 
@@ -116,16 +116,21 @@ func (c *CLI) completer(d prompt.Document) []prompt.Suggest {
 		return prompt.FilterHasPrefix(suggestions, d.GetWordBeforeCursor(), true)
 	}
 
-	// If we're completing arguments for the provision command, suggest files
-	if len(words) >= 1 && words[0] == "provision" {
-		return c.getFileCompletions(d.GetWordBeforeCursor())
+	// If we're completing arguments for commands that need files, suggest files
+	if len(words) >= 1 && (words[0] == "provision" || words[0] == "run") {
+		return c.getFileCompletions(d.GetWordBeforeCursor(), words[0])
+	}
+
+	// If we're completing the stop command, suggest existing pipelines
+	if len(words) >= 1 && words[0] == "stop" {
+		return c.getPipelineCompletions(d.GetWordBeforeCursor())
 	}
 
 	return []prompt.Suggest{}
 }
 
 // getFileCompletions returns file suggestions for completion
-func (c *CLI) getFileCompletions(prefix string) []prompt.Suggest {
+func (c *CLI) getFileCompletions(prefix string, command string) []prompt.Suggest {
 	var suggestions []prompt.Suggest
 
 	// Get the directory to search in
@@ -148,21 +153,69 @@ func (c *CLI) getFileCompletions(prefix string) []prompt.Suggest {
 			fullPath = filepath.Join(dir, entry.Name())
 		}
 
-		// For provision command, prioritize .yml and .yaml files
+		// Prioritize .yml and .yaml files for both provision and run commands
 		if entry.IsDir() {
 			suggestions = append(suggestions, prompt.Suggest{
 				Text:        fullPath + "/",
 				Description: "Directory",
 			})
 		} else if strings.HasSuffix(entry.Name(), ".yml") || strings.HasSuffix(entry.Name(), ".yaml") {
+			var description string
+			switch command {
+			case "provision":
+				description = "Ansible Playbook"
+			case "run":
+				description = "Kubernetes YAML"
+			default:
+				description = "YAML File"
+			}
 			suggestions = append(suggestions, prompt.Suggest{
 				Text:        fullPath,
-				Description: "Ansible Playbook",
+				Description: description,
 			})
 		} else {
 			suggestions = append(suggestions, prompt.Suggest{
 				Text:        fullPath,
 				Description: "File",
+			})
+		}
+	}
+
+	return prompt.FilterHasPrefix(suggestions, prefix, true)
+}
+
+// getPipelineCompletions returns pipeline suggestions for completion
+func (c *CLI) getPipelineCompletions(prefix string) []prompt.Suggest {
+	var suggestions []prompt.Suggest
+
+	// Check if kubectl is available
+	if _, err := exec.LookPath("kubectl"); err != nil {
+		return suggestions
+	}
+
+	// Get list of pipelines from kubectl
+	cmd := exec.Command("kubectl", "get", "pipeline", "--all-namespaces", "--no-headers", "-o", "custom-columns=NAME:.metadata.name,NAMESPACE:.metadata.namespace")
+	output, err := cmd.Output()
+	if err != nil {
+		// If command fails, return empty suggestions (pipelines might not be available)
+		return suggestions
+	}
+
+	// Parse the output
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			pipelineName := fields[0]
+			namespace := fields[1]
+
+			suggestions = append(suggestions, prompt.Suggest{
+				Text:        pipelineName,
+				Description: fmt.Sprintf("Pipeline in namespace: %s", namespace),
 			})
 		}
 	}
@@ -407,21 +460,117 @@ func (c *CLI) executeProvision(args []string) error {
 
 func (c *CLI) executeRun(args []string) error {
 	fmt.Println("▶️  Run command executed")
-	if len(args) > 0 {
-		fmt.Printf("   Arguments: %v\n", args)
+
+	if len(args) == 0 {
+		fmt.Println("   Error: Please provide a YAML file path or HTTP URL")
+		fmt.Println("   Usage: run <file.yaml> or run <http://example.com/manifest.yaml>")
+		return fmt.Errorf("missing YAML file or URL argument")
 	}
-	// TODO: Implement actual run logic
-	fmt.Println("   Status: Job would start running here...")
+
+	yamlSource := args[0]
+	fmt.Printf("   Source: %s\n", yamlSource)
+
+	// Check if kubectl is available
+	if _, err := exec.LookPath("kubectl"); err != nil {
+		fmt.Println("   Error: kubectl command not found in PATH")
+		fmt.Println("   Please install kubectl to use this feature")
+		return fmt.Errorf("kubectl not found: %v", err)
+	}
+
+	// Determine if the source is a URL or local file
+	isURL := strings.HasPrefix(yamlSource, "http://") || strings.HasPrefix(yamlSource, "https://")
+
+	if !isURL {
+		// Check if local file exists
+		if _, err := os.Stat(yamlSource); os.IsNotExist(err) {
+			fmt.Printf("   Error: YAML file '%s' does not exist\n", yamlSource)
+			return fmt.Errorf("YAML file not found: %s", yamlSource)
+		}
+	}
+
+	fmt.Println("   Status: Applying YAML to Kubernetes...")
+
+	// Prepare kubectl apply command
+	cmdArgs := []string{"apply", "-f", yamlSource}
+
+	// Add any additional kubectl arguments passed to the run command
+	if len(args) > 1 {
+		cmdArgs = append(cmdArgs, args[1:]...)
+	}
+
+	fmt.Printf("   Executing: kubectl %s\n", strings.Join(cmdArgs, " "))
+
+	// Execute kubectl apply
+	cmd := exec.Command("kubectl", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("   Error: kubectl apply failed: %v\n", err)
+		return fmt.Errorf("kubectl execution failed: %v", err)
+	}
+
+	fmt.Println("   ✅ YAML applied to Kubernetes successfully!")
 	return nil
 }
 
 func (c *CLI) executeStop(args []string) error {
 	fmt.Println("⏹️  Stop command executed")
-	if len(args) > 0 {
-		fmt.Printf("   Arguments: %v\n", args)
+
+	if len(args) == 0 {
+		fmt.Println("   Error: Please provide a Numaflow pipeline name")
+		fmt.Println("   Usage: stop <pipeline-name> [namespace]")
+		return fmt.Errorf("missing pipeline name argument")
 	}
-	// TODO: Implement actual stop logic
-	fmt.Println("   Status: Job would be stopped here...")
+
+	pipelineName := args[0]
+	fmt.Printf("   Pipeline: %s\n", pipelineName)
+
+	// Check if kubectl is available
+	if _, err := exec.LookPath("kubectl"); err != nil {
+		fmt.Println("   Error: kubectl command not found in PATH")
+		fmt.Println("   Please install kubectl to use this feature")
+		return fmt.Errorf("kubectl not found: %v", err)
+	}
+
+	// Determine namespace
+	namespace := "default"
+	if len(args) > 1 {
+		namespace = args[1]
+	}
+
+	fmt.Printf("   Namespace: %s\n", namespace)
+
+	// First, check if the pipeline exists
+	fmt.Println("   Status: Checking if pipeline exists...")
+	checkArgs := []string{"get", "pipeline", pipelineName, "-n", namespace, "--no-headers"}
+	checkCmd := exec.Command("kubectl", checkArgs...)
+	checkCmd.Stderr = nil // Suppress error output for this check
+
+	if err := checkCmd.Run(); err != nil {
+		fmt.Printf("   Error: Pipeline '%s' not found in namespace '%s'\n", pipelineName, namespace)
+		fmt.Println("   💡 Tip: Use tab completion to see available pipelines")
+		return fmt.Errorf("pipeline not found: %s", pipelineName)
+	}
+
+	fmt.Println("   Status: Stopping Numaflow pipeline...")
+
+	// Prepare kubectl delete command
+	cmdArgs := []string{"delete", "pipeline", pipelineName, "-n", namespace}
+
+	fmt.Printf("   Executing: kubectl %s\n", strings.Join(cmdArgs, " "))
+
+	// Execute kubectl delete
+	cmd := exec.Command("kubectl", cmdArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("   Error: kubectl delete failed: %v\n", err)
+		return fmt.Errorf("kubectl execution failed: %v", err)
+	}
+
+	fmt.Printf("   ✅ Numaflow pipeline '%s' stopped successfully!\n", pipelineName)
 	return nil
 }
 
