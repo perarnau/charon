@@ -3,3 +3,5 @@ python codes/
 RESULTS/
 __pycache__
 bin/
+logs/
+records/

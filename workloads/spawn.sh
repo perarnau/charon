@@ -8,9 +8,9 @@ kubectl delete pods --all -n workload
 # List of YAML files to apply
 yaml_files=(
   # "./sim_server/pod.yaml"
-  "./consumer/deployment_1000.yaml"
+  "./consumer/deployment_fp16.yaml"
   "./mirror_server/deployment.yaml"
-  "./sim_server/pod.yaml"
+  # "./sim_server/pod.yaml"
 
 )
 

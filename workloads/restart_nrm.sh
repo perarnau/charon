@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Delete all existing pods and deployments under workspace
-#kubectl delete deployment nrm -n charon
+kubectl delete deployment nrm -n charon
 kubectl delete deployment nrm-k3s -n charon
 
 
 # List of YAML files to apply
 yaml_files=(
-  #"./../ansible/kubernetes/nrm.yaml"
+  "./../ansible/kubernetes/nrm.yaml"
   "./../ansible/kubernetes/nrm-k3s.yaml"
 )
 

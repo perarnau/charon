@@ -53,8 +53,8 @@ spec:
           value: '3456'
         - name: NRM_UPSTREAM_PUB_PORT
           value: '2345'
-        image: gemblerz/ptychonn:trt861-amd64
-        imagePullPolicy: Always
+        image: local/ptychonn:trt
+        imagePullPolicy: Never
         name: consumer
         ports:
         - containerPort: 9100

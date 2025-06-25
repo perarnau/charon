@@ -31,7 +31,7 @@ spec:
         - --processor-class
         - InferPtychoNNImageProcessor
         - --processor-args
-        - '{"onnx_mdl": "/app/model_512_fp16.trt", "output_x": 64, "output_y": 64,
+        - '{"onnx_mdl": "/app/model_512_fp32.trt", "output_x": 64, "output_y": 64,
           "net": "wan0"}'
         - --report-period
         - '5'
@@ -53,8 +53,8 @@ spec:
           value: '3456'
         - name: NRM_UPSTREAM_PUB_PORT
           value: '2345'
-        image: gemblerz/ptychonn:trt861-amd64
-        imagePullPolicy: Always
+        image: local/ptychonn:trt
+        imagePullPolicy: Never
         name: consumer
         ports:
         - containerPort: 9100

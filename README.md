@@ -6,17 +6,31 @@ The Charon project provides a set of tools to build a computing infrastructure w
 
 This repository contains [scripts](ansible/) to provision a set of computing machines and build a Kubernetes (k3s) cluster using the machines. Then, you can tap into Grafana dashboard on the master node of the cluster to monitor performance of the system and any applications you launch in the Kubernetes cluster. You can also develop and deploy your controller to handle user applications based on the system and application performance. The [data] directory holds a few datasets collected from experiments.
 
-## Provisioning a computing cluster
-In the provisioning process, we install Kubernetes (k3s), Helm chart (Kubernetes package manager), Mimir (time-series storage), Grafana-agent/operator (Prometheus metrics scraper), and Grafana (metrics visualization). In the end of this process, the node is ready to take workloads.
+## Provisioning a Computing Cluster
+Please refer to the [README](ansible/README.md) for details.
 
-First, update the [inventory.yaml](ansible/inventory.yaml) for "UPDATEME"s.
+## Install Node Resource Manager for Publishing Metrics
+Argonne's Node Resource Manager (NRM) publishes data pushed from data sources. To run,
 
-__CAUTION: This ansible script expects the host system to have the nvidia-runtime-toolkit already installed. If not, please install the [package](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) before you run the ansible-playbook.__
-
-Then run,
 ```bash
-ansible-playbook -i ansible/inventory.yaml ansible/provisioning.yaml
+# Run the following command inside the machine
+kubectl -n charon apply -f ansible/kubernetes/nrm.yaml
+kubectl -n charon apply -f ansible/kubernetes/nrm-k3s.yaml
 ```
+
+To validate the NRM instance,
+```bash
+nrmc listen
+```
+
+You should see a heartbeat message from the NRM instance,
+```bash
+event: 1738868720562817129 daemon.tick nrm.hwloc.Machine.0 1.000000
+event: 1738868721562980582 daemon.tick nrm.hwloc.Machine.0 1.000000
+```
+
+## Run Workloads
+
 
 ## Developer Notes
 Some useful developer notes and a list of todo items for improvement can be found [here](TODO.md).
