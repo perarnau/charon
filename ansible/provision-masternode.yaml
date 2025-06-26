@@ -18,7 +18,7 @@
     ignore_errors: true
 
   - name: Add Kubernetes api and metrics server ports in the firewall
-    ansible.builtin.command: firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp
+    ansible.builtin.command: firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp --add-port=30080/tcp
     ignore_errors: true
 
   - name: Reload firewall for newly added rules
@@ -197,4 +197,140 @@
       namespace: "{{ k3s_namespace }}"
     become: "{{ false if ansible_user is defined else true }}"
 
-  
+  # Prometheus Operator Installation for Numaflow Metrics
+  - name: Add Prometheus Community Helm repository
+    kubernetes.core.helm_repository:
+      name: prometheus-community
+      repo_url: https://prometheus-community.github.io/helm-charts
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create monitoring namespace
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: monitoring
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Install kube-prometheus-stack with Grafana
+    kubernetes.core.helm:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: prometheus
+      namespace: monitoring
+      chart_ref: prometheus-community/kube-prometheus-stack
+      values:
+        grafana:
+          enabled: true
+          adminPassword: admin123
+          service:
+            type: NodePort
+            nodePort: 30080
+          persistence:
+            enabled: false
+        prometheus:
+          prometheusSpec:
+            storageSpec: {}
+        alertmanager:
+          enabled: false
+        nodeExporter:
+          enabled: true
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow Controller
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-controller-metrics
+          namespace: numaflow-system
+          labels:
+            release: prometheus
+        spec:
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: controller
+          endpoints:
+          - port: metrics
+            interval: 30s
+            path: /metrics
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow Daemon
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-daemon-metrics
+          namespace: numaflow-system
+          labels:
+            release: prometheus
+        spec:
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: daemon-server
+          endpoints:
+          - port: metrics
+            interval: 30s
+            path: /metrics
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Wait for Prometheus Operator to be ready
+    kubernetes.core.k8s_info:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      api_version: apps/v1
+      kind: Deployment
+      name: prometheus-kube-prometheus-operator
+      namespace: monitoring
+      wait: true
+      wait_condition:
+        type: Available
+        status: "True"
+      wait_timeout: 300
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Wait for Grafana to be ready
+    kubernetes.core.k8s_info:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      api_version: apps/v1
+      kind: Deployment
+      name: prometheus-grafana
+      namespace: monitoring
+      wait: true
+      wait_condition:
+        type: Available
+        status: "True"
+      wait_timeout: 300
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Display Grafana access information
+    ansible.builtin.debug:
+      msg: |
+        ✅ Grafana Dashboard is now available!
+        
+        📊 Access Grafana:
+        URL: http://<node-ip>:30080
+        Username: admin
+        Password: admin123
+        
+        🔍 Prometheus is also available via port-forwarding:
+        kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090
+        
+        📈 Pre-configured dashboards should be available for:
+        - Kubernetes cluster metrics
+        - Node metrics  
+        - Numaflow pipeline metrics (via ServiceMonitors)
+        
+        💡 Access methods:
+        1. Direct access: Replace <node-ip> with your actual node IP
+        2. Port-forwarding: kubectl port-forward -n monitoring svc/prometheus-grafana 30080:30080
+        3. Local access: http://localhost:30080 (when using port-forwarding)
+        
+        🔍 To get your node IP: kubectl get nodes -o wide
+

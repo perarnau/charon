@@ -37,6 +37,47 @@
       state: absent
     ignore_errors: true
 
+  # Remove Prometheus monitoring components first
+  - name: Remove Numaflow ServiceMonitors
+    when: k3s_check.rc == 0
+    kubernetes.core.k8s:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      api_version: monitoring.coreos.com/v1
+      kind: ServiceMonitor
+      name: "{{ item }}"
+      namespace: numaflow-system
+      state: absent
+    loop:
+      - numaflow-controller-metrics
+      - numaflow-daemon-metrics
+    ignore_errors: true
+
+  - name: Uninstall kube-prometheus-stack
+    when: k3s_check.rc == 0
+    kubernetes.core.helm:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      name: prometheus
+      namespace: monitoring
+      state: absent
+    ignore_errors: true
+
+  - name: Remove monitoring namespace
+    when: k3s_check.rc == 0
+    kubernetes.core.k8s:
+      kubeconfig: /etc/rancher/k3s/k3s.yaml
+      api_version: v1
+      kind: Namespace
+      name: monitoring
+      state: absent
+    ignore_errors: true
+
+  - name: Remove prometheus-community Helm repository
+    when: k3s_check.rc == 0
+    kubernetes.core.helm_repository:
+      name: prometheus-community
+      state: absent
+    ignore_errors: true
+
   - name: Stop k3s service
     when: k3s_check.rc == 0
     ansible.builtin.systemd:
@@ -49,6 +90,11 @@
     ansible.builtin.systemd:
       name: k3s
       enabled: false
+    ignore_errors: true
+
+  - name: Kill all k3s processes
+    when: k3s_check.rc == 0
+    ansible.builtin.shell: /usr/local/bin/k3s-killall.sh
     ignore_errors: true
 
   - name: Uninstall k3s
@@ -106,8 +152,8 @@
   #   ignore_errors: true
 
   # Firewall cleanup
-  - name: Remove Kubernetes api and metrics server ports from firewall
-    ansible.builtin.command: firewall-cmd --permanent --remove-port=6443/tcp --remove-port=10250/tcp
+  - name: Remove Kubernetes api, metrics server and Grafana ports from firewall
+    ansible.builtin.command: firewall-cmd --permanent --remove-port=6443/tcp --remove-port=10250/tcp --remove-port=30080/tcp
     ignore_errors: true
 
   - name: Remove Kubernetes Pod and Service IPs from firewall
@@ -168,9 +214,11 @@
         
         The following components have been removed:
         - k3s Kubernetes cluster
+        - Prometheus monitoring stack (including Grafana)
+        - Numaflow ServiceMonitors
         - Nvidia DCGM (if applicable)
         - User kubernetes configuration
-        - Firewall rules for Kubernetes
+        - Firewall rules for Kubernetes and Grafana
         - Helm binary
         - k3s data and configuration files
         
