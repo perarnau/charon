@@ -96,3 +96,21 @@ func checkIfPlaybookRequiresSudo(playbookPath string) bool {
 		strings.Contains(contentStr, "ansible.builtin.apt:") ||
 		strings.Contains(contentStr, "ansible.builtin.systemd:")
 }
+
+// isLocalHost checks if the given host is a local address
+func isLocalHost(host string) bool {
+	localHosts := []string{
+		"localhost",
+		"127.0.0.1",
+		"::1",
+		"0.0.0.0",
+	}
+
+	for _, localHost := range localHosts {
+		if host == localHost {
+			return true
+		}
+	}
+
+	return false
+}

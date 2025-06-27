@@ -12,12 +12,30 @@ func (c *CLI) executeProvision(args []string) error {
 
 	if len(args) == 0 {
 		fmt.Println("   Error: Please provide a playbook file path")
-		fmt.Println("   Usage: provision <playbook.yml>")
+		fmt.Println("   Usage: provision <playbook.yml> [host-ip-or-name]")
+		fmt.Println("   Examples:")
+		fmt.Println("     provision ansible/provision-masternode.yaml")
+		fmt.Println("     provision ansible/provision-masternode.yaml 192.168.1.100")
+		fmt.Println("     provision ansible/provision-masternode.yaml my-server.example.com")
+		fmt.Println("   Note: Local hosts (localhost, 127.0.0.1) use local connection automatically")
 		return fmt.Errorf("missing playbook file argument")
 	}
 
 	playbookPath := args[0]
-	fmt.Printf("   Playbook: %s\n", playbookPath)
+	var targetHost string
+	if len(args) > 1 {
+		targetHost = args[1]
+		fmt.Printf("   Playbook: %s\n", playbookPath)
+		fmt.Printf("   Target Host: %s\n", targetHost)
+		if isLocalHost(targetHost) {
+			fmt.Println("   Connection: Local (no SSH required)")
+		} else {
+			fmt.Println("   Connection: SSH")
+		}
+	} else {
+		fmt.Printf("   Playbook: %s\n", playbookPath)
+		fmt.Println("   Target Host: Using playbook default (localhost)")
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(playbookPath); os.IsNotExist(err) {
@@ -108,9 +126,28 @@ func (c *CLI) executeProvision(args []string) error {
 
 	// Prepare the command
 	cmdArgs := []string{playbookPath}
-	if len(args) > 1 {
-		// Add any additional arguments passed to the provision command
-		cmdArgs = append(cmdArgs, args[1:]...)
+
+	// If target host is specified, override the inventory
+	if targetHost != "" {
+		cmdArgs = append(cmdArgs, "-i", fmt.Sprintf("%s,", targetHost))
+		// Use --limit to ensure we only target the specified host
+		cmdArgs = append(cmdArgs, "--limit", targetHost)
+
+		// For local hosts, use local connection to avoid SSH
+		if isLocalHost(targetHost) {
+			cmdArgs = append(cmdArgs, "-c", "local")
+		}
+	}
+
+	// Add any additional arguments passed to the provision command
+	// (skip the playbook path and host if provided)
+	additionalArgsStart := 1
+	if targetHost != "" {
+		additionalArgsStart = 2
+	}
+
+	if len(args) > additionalArgsStart {
+		cmdArgs = append(cmdArgs, args[additionalArgsStart:]...)
 	}
 
 	// Add ansible_user as an extra variable
@@ -146,6 +183,21 @@ func (c *CLI) executeProvision(args []string) error {
 
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("   Error: ansible-playbook failed: %v\n", err)
+
+		// Check if it's an exit error to provide more helpful information
+		if exitError, ok := err.(*exec.ExitError); ok {
+			fmt.Printf("   Exit Code: %d\n", exitError.ExitCode())
+
+			// Provide helpful hints for common issues
+			if exitError.ExitCode() == 4 {
+				fmt.Println("\n   💡 Common SSH connection issues:")
+				fmt.Println("      - For localhost: Consider using 'connection: local' in your playbook")
+				fmt.Println("      - For remote hosts: Ensure SSH key authentication is set up")
+				fmt.Println("      - Try adding '-c local' flag for local execution")
+				fmt.Println("      - Check if SSH service is running on the target host")
+			}
+		}
+
 		return fmt.Errorf("ansible-playbook execution failed: %v", err)
 	}
 

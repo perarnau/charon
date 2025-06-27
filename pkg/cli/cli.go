@@ -40,7 +40,7 @@ func NewCLI() *CLI {
 func (c *CLI) registerCommands() {
 	c.commands["provision"] = Command{
 		Name:        "provision",
-		Description: "Provision resources and infrastructure",
+		Description: "Provision resources and infrastructure [playbook.yml] [host-ip]",
 		Execute:     c.executeProvision,
 	}
 
@@ -123,6 +123,15 @@ func (c *CLI) completer(d prompt.Document) []prompt.Suggest {
 
 	// If we're completing arguments for commands that need files, suggest files
 	if len(words) >= 1 && (words[0] == "provision" || words[0] == "run") {
+		// For provision command: first arg is playbook file, second arg is optional host
+		if words[0] == "provision" && len(words) >= 2 && strings.HasSuffix(text, " ") {
+			// If we're completing the second argument for provision, don't suggest files
+			// User should manually type the host IP/name
+			return []prompt.Suggest{
+				{Text: "192.168.1.", Description: "Example IP address"},
+				{Text: "localhost", Description: "Local host"},
+			}
+		}
 		return c.getFileCompletions(d.GetWordBeforeCursor(), words[0])
 	}
 

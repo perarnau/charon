@@ -15,6 +15,11 @@ This package contains the command-line interface for Charon. The CLI has been re
 ## Available Commands
 
 - **provision** - Provision resources and infrastructure using Ansible playbooks
+  - Usage: `provision <playbook.yml> [host-ip-or-name]`
+  - Examples:
+    - `provision ansible/provision-masternode.yaml` (runs on localhost)
+    - `provision ansible/provision-masternode.yaml 192.168.1.100` (runs on remote host)
+    - `provision ansible/provision-masternode.yaml my-server.example.com` (runs on named host)
 - **run** - Apply a Numaflow pipeline or Kubernetes YAML to the cluster
 - **stop** - Stop a Numaflow pipeline
 - **kubectl** - Execute kubectl commands directly with proper kubeconfig handling
@@ -29,6 +34,7 @@ This package contains the command-line interface for Charon. The CLI has been re
 - Secure password input for Ansible operations
 - Tab completion for files, directories, and pipeline names
 - Graceful signal handling
+- **Dynamic host targeting for Ansible playbooks** - Override the `hosts` attribute in any playbook by providing a target host IP or hostname
 
 ## Usage
 
