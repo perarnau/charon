@@ -237,7 +237,7 @@
           enabled: true
     become: "{{ false if ansible_user is defined else true }}"
 
-  - name: Create ServiceMonitor for Numaflow Controller
+  - name: Create ServiceMonitor for Numaflow Pipeline Metrics
     kubernetes.core.k8s:
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
       state: present
@@ -245,21 +245,34 @@
         apiVersion: monitoring.coreos.com/v1
         kind: ServiceMonitor
         metadata:
-          name: numaflow-controller-metrics
-          namespace: numaflow-system
+          name: numaflow-pipeline-metrics
+          namespace: monitoring
           labels:
+            app.kubernetes.io/part-of: numaflow
             release: prometheus
         spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: metrics
+            targetPort: 2469
+            tlsConfig:
+              insecureSkipVerify: true
           selector:
             matchLabels:
-              app.kubernetes.io/component: controller
-          endpoints:
-          - port: metrics
-            interval: 30s
-            path: /metrics
+              app.kubernetes.io/component: vertex
+              app.kubernetes.io/managed-by: vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/pipeline-name
+              operator: Exists
+            - key: numaflow.numaproj.io/vertex-name
+              operator: Exists
     become: "{{ false if ansible_user is defined else true }}"
 
-  - name: Create ServiceMonitor for Numaflow Daemon
+  - name: Create ServiceMonitor for Numaflow Pipeline Daemon Metrics
     kubernetes.core.k8s:
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
       state: present
@@ -267,18 +280,155 @@
         apiVersion: monitoring.coreos.com/v1
         kind: ServiceMonitor
         metadata:
-          name: numaflow-daemon-metrics
-          namespace: numaflow-system
+          name: numaflow-pipeline-daemon-metrics
+          namespace: monitoring
           labels:
+            app.kubernetes.io/part-of: numaflow
             release: prometheus
         spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: tcp
+            targetPort: 4327
+            tlsConfig:
+              insecureSkipVerify: true
           selector:
             matchLabels:
-              app.kubernetes.io/component: daemon-server
+              app.kubernetes.io/component: daemon
+              app.kubernetes.io/managed-by: pipeline-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/pipeline-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow MonoVertex Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-mvtx-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
           endpoints:
-          - port: metrics
-            interval: 30s
-            path: /metrics
+          - scheme: https
+            port: metrics
+            targetPort: 2469
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: mono-vertex
+              app.kubernetes.io/managed-by: mono-vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/mono-vertex-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow MonoVertex Daemon Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-mvtx-daemon-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: tcp
+            targetPort: 4327
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: mono-vertex-daemon
+              app.kubernetes.io/managed-by: mono-vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/mono-vertex-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create PodMonitor for Numaflow Controller Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: PodMonitor
+        metadata:
+          name: numaflow-controller-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - numaflow-system
+          podMetricsEndpoints:
+          - scheme: http
+            port: metrics
+            targetPort: 9090
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: controller-manager
+              app.kubernetes.io/name: controller-manager
+              app.kubernetes.io/part-of: numaflow
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow JetStream ISB Service
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-isbsvc-jetstream-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: http
+            port: metrics
+            targetPort: 7777
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: isbsvc
+              app.kubernetes.io/managed-by: isbsvc-controller
+              app.kubernetes.io/part-of: numaflow
+              numaflow.numaproj.io/isbsvc-type: jetstream
+            matchExpressions:
+            - key: numaflow.numaproj.io/isbsvc-name
+              operator: Exists
     become: "{{ false if ansible_user is defined else true }}"
 
   - name: Wait for Prometheus Operator to be ready

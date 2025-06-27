@@ -1,0 +1,31 @@
+apiVersion: numaflow.numaproj.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: simple-pipeline2
+spec:
+  vertices:
+    - name: in
+      scale:
+        min: 1
+      # A self data generating source
+      source:
+        generator:
+          rpu: 100
+          duration: 1s
+    - name: cat
+      scale:
+        min: 1
+      udf:
+        container:
+          image: quay.io/numaio/numaflow-go/map-cat:stable # A UDF which simply cats the message
+          imagePullPolicy: Always
+    - name: out
+      scale:
+        min: 1
+      sink:
+        log: {}
+  edges:
+    - from: in
+      to: cat
+    - from: cat
+      to: out
