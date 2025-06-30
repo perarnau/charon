@@ -35,13 +35,11 @@
       - net-tools
       # add other packages here
   
-  - name: Upgrade pip
-    ansible.builtin.pip:
-      name: pip
-      state: latest
+  # - name: Upgrade pip
+  #   ansible.builtin.shell: pip3 install --upgrade pip --break-system-packages
 
   - name: Install Python packages
-    ansible.builtin.shell: pip3 install kubernetes --user
+    ansible.builtin.shell: pip3 install kubernetes --break-system-packages
     become: true
     become_user: "{{ ansible_user | default('root') }}"
     when: ansible_user is defined
@@ -160,18 +158,6 @@
       repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
     become: "{{ false if ansible_user is defined else true }}"
 
-  - name: Deploy Nvidia DCGM in Kubernetes
-    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
-    kubernetes.core.helm:
-      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
-      name: nvidia-dcgm
-      namespace: "{{ k3s_namespace }}"
-      chart_ref: gpu-helm-charts/dcgm-exporter
-      set_values:
-      - value: runtimeClassName=nvidia
-        value_type: string
-    become: "{{ false if ansible_user is defined else true }}"
-
   - name: Create numaflow-system namespace in Kubernetes
     kubernetes.core.k8s:
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
@@ -235,6 +221,56 @@
           enabled: false
         nodeExporter:
           enabled: true
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Deploy Nvidia DCGM in Kubernetes
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: gpu-helm-charts/dcgm-exporter
+      set_values:
+      - value: runtimeClassName=nvidia
+        value_type: string
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for DCGM Exporter
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          labels:
+            instance: primary
+            release: prometheus
+          name: dcgm-monitor
+          namespace: monitoring
+        spec:
+          endpoints:
+          - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+            honorLabels: true
+            honorTimestamps: false
+            interval: "{{ scrape_interval }}"
+            path: /metrics
+            port: metrics
+            relabelings:
+            - sourceLabels:
+              - __metrics_path__
+              targetLabel: metrics_path
+            - action: replace
+              targetLabel: job
+              replacement: integrations/dcgm-exporter
+            scheme: http
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: dcgm-exporter
     become: "{{ false if ansible_user is defined else true }}"
 
   - name: Create ServiceMonitor for Numaflow Pipeline Metrics

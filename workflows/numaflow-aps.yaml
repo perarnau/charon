@@ -29,7 +29,7 @@ spec:
           imagePullPolicy: Never
       scale:
         min: 1
-        max: 5
+        max: 15
       limits:
         readBatchSize: 1
       runtimeClassName: nvidia
