@@ -44,6 +44,49 @@
     become_user: "{{ ansible_user | default('root') }}"
     when: ansible_user is defined
 
+  
+  - name: Check if Nvidia GPU is available
+    ansible.builtin.command: nvidia-smi --list-gpus
+    register: list_of_nvidia_gpus
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set a number of available Nvidia GPUs
+    when: list_of_nvidia_gpus.rc == 0
+    ansible.builtin.set_fact:
+      number_of_available_nvidia_gpu: "{{ list_of_nvidia_gpus.stdout_lines | length }}"
+
+  - name: Check number of GPUs
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    debug:
+      msg: "Found {{ number_of_available_nvidia_gpu }} GPUs"
+
+  - name: Add the nvidia PPA repository
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    apt_repository:
+      repo: 'ppa:graphics-drivers/ppa'
+      state: present
+
+  - name: Add NVIDIA Container Toolkit GPG key
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt_key:
+      url: https://nvidia.github.io/libnvidia-container/gpgkey
+      state: present
+
+  - name: Add NVIDIA Container Toolkit repository
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt_repository:
+      repo: "deb https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /"
+      state: present
+      update_cache: yes
+
+  - name: Install Nvidia container toolkit
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt:
+      pkg:
+      - nvidia-container-toolkit
+      update_cache: yes
+
   # TODO: we may want to skip this if already exists
   - name: Get k3s installed version
     ansible.builtin.command: k3s --version
@@ -122,34 +165,6 @@
       kind: Namespace
       state: present
     become: "{{ false if ansible_user is defined else true }}"
-  
-  - name: Check if Nvidia GPU is available
-    ansible.builtin.command: nvidia-smi --list-gpus
-    register: list_of_nvidia_gpus
-    changed_when: false
-    ignore_errors: true
-
-  - name: Set a number of available Nvidia GPUs
-    when: list_of_nvidia_gpus.rc == 0
-    ansible.builtin.set_fact:
-      number_of_available_nvidia_gpu: "{{ list_of_nvidia_gpus.stdout_lines | length }}"
-
-  - name: Check number of GPUs
-    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
-    debug:
-      msg: "Found {{ number_of_available_nvidia_gpu }} GPUs"
-
-  - name: Add the nvidia PPA repository
-    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
-    apt_repository:
-      repo: 'ppa:graphics-drivers/ppa'
-      state: present
-
-  - name: Install Nvidia container toolkit
-    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
-    ansible.builtin.apt:
-      pkg:
-      - nvidia-container-toolkit
 
   - name: Add Nvidia DCGM to Helm chart
     when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
@@ -171,7 +186,7 @@
     kubernetes.core.k8s:
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
       state: present
-      src: https://raw.githubusercontent.com/numaproj/numaflow/main/config/install.yaml
+      src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/config/install.yaml
       namespace: numaflow-system
     become: "{{ false if ansible_user is defined else true }}"
 
@@ -179,7 +194,7 @@
     kubernetes.core.k8s:
       kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
       state: present
-      src: https://raw.githubusercontent.com/numaproj/numaflow/main/examples/0-isbsvc-jetstream.yaml
+      src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/examples/0-isbsvc-jetstream.yaml
       namespace: "{{ k3s_namespace }}"
     become: "{{ false if ansible_user is defined else true }}"
 
@@ -517,6 +532,4 @@
         1. Direct access: Replace <node-ip> with your actual node IP
         2. Port-forwarding: kubectl port-forward -n monitoring svc/prometheus-grafana 30080:30080
         3. Local access: http://localhost:30080 (when using port-forwarding)
-        
-        🔍 To get your node IP: kubectl get nodes -o wide
-
+         🔍 To get your node IP: kubectl get nodes -o wide
