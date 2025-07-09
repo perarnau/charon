@@ -1,0 +1,20 @@
+# Name of performance metrics we are interested in capturing from the ptychography experiment
+# This follows the Prometheus query format
+# Lines starting with # are comments and will be ignored
+# Empty lines are also ignored
+
+# Basic health checks
+up
+prometheus_tsdb_head_series
+
+# TSDB metrics
+prometheus_tsdb_head_samples_appended_total
+prometheus_tsdb_head_chunks
+
+# Node exporter metrics (if available)
+node_cpu_seconds_total
+node_memory_MemAvailable_bytes
+
+# Kubernetes metrics (if available)
+kube_pod_status_phase
+kube_node_status_condition

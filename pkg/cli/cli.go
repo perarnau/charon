@@ -62,6 +62,12 @@ func (c *CLI) registerCommands() {
 		Execute:     c.executeKubectl,
 	}
 
+	c.commands["metrics"] = Command{
+		Name:        "metrics",
+		Description: "Collect metrics from Prometheus server and save to file",
+		Execute:     c.executeMetrics,
+	}
+
 	c.commands["help"] = Command{
 		Name:        "help",
 		Description: "Show help information",
@@ -133,6 +139,29 @@ func (c *CLI) completer(d prompt.Document) []prompt.Suggest {
 			}
 		}
 		return c.getFileCompletions(d.GetWordBeforeCursor(), words[0])
+	}
+
+	// If we're completing the metrics command, suggest common Prometheus URLs and options
+	if len(words) >= 1 && words[0] == "metrics" {
+		if len(words) == 1 || (len(words) == 2 && !strings.HasSuffix(text, " ")) {
+			// First argument: Prometheus URL
+			return []prompt.Suggest{
+				{Text: "http://localhost:9090", Description: "Local Prometheus server"},
+				{Text: "http://prometheus:9090", Description: "Prometheus service"},
+				{Text: "http://monitoring:9090", Description: "Monitoring namespace Prometheus"},
+			}
+		} else {
+			// Subsequent arguments: options
+			return []prompt.Suggest{
+				{Text: "--query", Description: "PromQL query to execute (can be used multiple times)"},
+				{Text: "--queries-file", Description: "File containing list of PromQL queries"},
+				{Text: "--start", Description: "Start time (RFC3339 or Unix timestamp)"},
+				{Text: "--end", Description: "End time (RFC3339 or Unix timestamp)"},
+				{Text: "--step", Description: "Step duration (e.g., 30s, 1m, 5m)"},
+				{Text: "--output", Description: "Output file path"},
+				{Text: "--list-metrics", Description: "List all available metrics from Prometheus"},
+			}
+		}
 	}
 
 	// If we're completing the stop command, suggest existing pipelines
@@ -322,7 +351,7 @@ func (c *CLI) Run() {
 			c.completer,
 			prompt.OptionPrefix("charon> "),
 			prompt.OptionTitle("Charon CLI"),
-			prompt.OptionHistory([]string{"help", "provision", "run", "stop"}),
+			prompt.OptionHistory([]string{"help", "provision", "run", "stop", "metrics"}),
 			prompt.OptionPrefixTextColor(prompt.Blue),
 			prompt.OptionPreviewSuggestionTextColor(prompt.Blue),
 			prompt.OptionSelectedSuggestionBGColor(prompt.LightGray),
