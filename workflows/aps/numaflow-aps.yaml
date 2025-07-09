@@ -1,16 +1,16 @@
 apiVersion: numaflow.numaproj.io/v1alpha1
 kind: Pipeline
 metadata:
-  name: pvapy-test
+  name: ptychography
 spec:
   vertices:
     - name: in
       source:
         udsource:
           container:
-            image: local/pvapy-udsource:0.0.1
+            image: gemblerz/pvapy-udsource:0.0.1
             resources: {}
-            imagePullPolicy: Never
+            imagePullPolicy: Always
             env:
             - name: PVA_INPUT_CHANNEL
               value: "pva:image"
@@ -24,9 +24,9 @@ spec:
     - name: cat
       udf:
         container:
-          image: local/pvapy-udf:0.0.1
+          image: gemblerz/ptychonn-udf:0.0.1
           resources: {}
-          imagePullPolicy: Never
+          imagePullPolicy: Always
       scale:
         min: 1
         max: 15
