@@ -8,6 +8,8 @@
     target_k3s_version: "v1.33.1+k3s1"
     k3s_namespace: default
     scrape_interval: 15s
+    general_interval: 15s
+    rapid_interval: 5s
     k3s_cluster_cidr: "10.31.0.0/16"
     k3s_service_cidr: "10.32.0.0/16"
 
@@ -190,13 +192,14 @@
       namespace: numaflow-system
     become: "{{ false if ansible_user is defined else true }}"
 
-  - name: Apply numaflow isbsvc-jetstream.yaml in numaflow-system namespace
-    kubernetes.core.k8s:
-      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
-      state: present
-      src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/examples/0-isbsvc-jetstream.yaml
-      namespace: "{{ k3s_namespace }}"
-    become: "{{ false if ansible_user is defined else true }}"
+  # NOTE: Uncomment the following lines if you want to use the default JetStream as the InterStepBufferService
+  # - name: Apply numaflow isbsvc-jetstream.yaml in numaflow-system namespace
+  #   kubernetes.core.k8s:
+  #     kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+  #     state: present
+  #     src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/examples/0-isbsvc-jetstream.yaml
+  #     namespace: "{{ k3s_namespace }}"
+  #   become: "{{ false if ansible_user is defined else true }}"
 
   # Prometheus Operator Installation for Numaflow Metrics
   - name: Add Prometheus Community Helm repository
@@ -269,7 +272,7 @@
           - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
             honorLabels: true
             honorTimestamps: false
-            interval: "{{ scrape_interval }}"
+            interval: "{{ rapid_interval }}"
             path: /metrics
             port: metrics
             relabelings:
@@ -309,6 +312,7 @@
           - scheme: https
             port: metrics
             targetPort: 2469
+            interval: "{{ general_interval }}"
             tlsConfig:
               insecureSkipVerify: true
           selector:
@@ -344,6 +348,7 @@
           - scheme: https
             port: tcp
             targetPort: 4327
+            interval: "{{ general_interval }}"
             tlsConfig:
               insecureSkipVerify: true
           selector:
@@ -377,6 +382,7 @@
           - scheme: https
             port: metrics
             targetPort: 2469
+            interval: "{{ general_interval }}"
             tlsConfig:
               insecureSkipVerify: true
           selector:
@@ -410,6 +416,7 @@
           - scheme: https
             port: tcp
             targetPort: 4327
+            interval: "{{ general_interval }}"
             tlsConfig:
               insecureSkipVerify: true
           selector:
@@ -443,6 +450,7 @@
           - scheme: http
             port: metrics
             targetPort: 9090
+            interval: "{{ rapid_interval }}"
           selector:
             matchLabels:
               app.kubernetes.io/component: controller-manager
@@ -471,6 +479,7 @@
           - scheme: http
             port: metrics
             targetPort: 7777
+            interval: "{{ general_interval }}"
           selector:
             matchLabels:
               app.kubernetes.io/component: isbsvc
@@ -494,6 +503,32 @@
         type: Available
         status: "True"
       wait_timeout: 300
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create PodMonitor for Workload Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: PodMonitor
+        metadata:
+          name: workload-metrics
+          namespace: monitoring
+          labels:
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          podMetricsEndpoints:
+          - scheme: http
+            targetPort: 9100
+            interval: "{{ rapid_interval }}"
+            path: /metrics
+          selector:
+            matchLabels:
+              role: workload
     become: "{{ false if ansible_user is defined else true }}"
 
   - name: Wait for Grafana to be ready

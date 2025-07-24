@@ -13,25 +13,32 @@ spec:
             imagePullPolicy: Always
             env:
             - name: PVA_INPUT_CHANNEL
-              value: "pva:image"
+              value: "ad:image"
             - name: PVA_QUEUE_SIZE
               value: "1000"
             - name: DEBUG
               value: "true"
       scale:
         min: 1
-        max: 5
+        max: 1
     - name: cat
       udf:
         container:
-          image: gemblerz/ptychonn-udf:0.0.1
-          resources: {}
+          image: gemblerz/ptychonn-udf:0.0.2
           imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 1000m
+            requests:
+              cpu: 1000m
+          env:
+          - name: DEBUG
+            value: "true"
       scale:
         min: 1
-        max: 15
+        max: 1
       limits:
-        readBatchSize: 1
+        readBatchSize: 8
       runtimeClassName: nvidia
     - name: out
       sink:

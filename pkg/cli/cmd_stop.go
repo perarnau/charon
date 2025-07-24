@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 func (c *CLI) executeStop(args []string) error {
@@ -48,6 +49,9 @@ func (c *CLI) executeStop(args []string) error {
 
 	fmt.Println("   Status: Stopping Numaflow pipeline...")
 
+	// Record the stop time for metrics collection
+	stopTime := time.Now()
+
 	// Prepare kubectl delete command
 	cmdArgs := []string{"delete", "pipeline", pipelineName, "-n", namespace}
 
@@ -64,5 +68,52 @@ func (c *CLI) executeStop(args []string) error {
 	}
 
 	fmt.Printf("   ✅ Numaflow pipeline '%s' stopped successfully!\n", pipelineName)
+	fmt.Printf("   Pipeline stop time: %s\n", stopTime.Format(time.RFC3339))
+	
+	// Print helpful metrics collection commands
+	fmt.Println()
+	fmt.Println("   📊 Metrics Collection Commands:")
+	fmt.Println("   " + strings.Repeat("=", 50))
+	fmt.Println()
+	fmt.Println("   💡 Use this stop time as the --end parameter for metrics collection:")
+	fmt.Println()
+	
+	// Show example metrics commands with the stop time
+	pipelineNameClean := strings.ReplaceAll(pipelineName, "-", "_")
+	
+	fmt.Printf("   # Collect metrics ending at pipeline stop time:\n")
+	fmt.Printf("   charonctl metrics http://localhost:9090 \\\n")
+	fmt.Printf("     --start YOUR_WORKFLOW_START_TIME \\\n")
+	fmt.Printf("     --end %s \\\n", stopTime.Format(time.RFC3339))
+	fmt.Printf("     --step 30s \\\n")
+	fmt.Printf("     --format csv \\\n")
+	fmt.Printf("     --output %s_complete_metrics.csv\n", pipelineNameClean)
+	fmt.Println()
+	
+	fmt.Printf("   # Or collect from 1 hour ago to stop time:\n")
+	fmt.Printf("   charonctl metrics http://localhost:9090 \\\n")
+	fmt.Printf("     --start %s \\\n", stopTime.Add(-1*time.Hour).Format(time.RFC3339))
+	fmt.Printf("     --end %s \\\n", stopTime.Format(time.RFC3339))
+	fmt.Printf("     --step 30s \\\n")
+	fmt.Printf("     --format csv \\\n")
+	fmt.Printf("     --output %s_last_hour_metrics.csv\n", pipelineNameClean)
+	fmt.Println()
+	
+	fmt.Printf("   # Collect specific pipeline metrics with end time:\n")
+	fmt.Printf("   charonctl metrics http://localhost:9090 \\\n")
+	fmt.Printf("     --start YOUR_WORKFLOW_START_TIME \\\n")
+	fmt.Printf("     --end %s \\\n", stopTime.Format(time.RFC3339))
+	fmt.Printf("     --step 30s \\\n")
+	fmt.Printf("     --query 'up' \\\n")
+	fmt.Printf("     --query 'container_cpu_usage_seconds_total' \\\n")
+	fmt.Printf("     --query 'container_memory_usage_bytes' \\\n")
+	fmt.Printf("     --query 'kube_pod_status_phase' \\\n")
+	fmt.Printf("     --format csv \\\n")
+	fmt.Printf("     --output %s_pipeline_metrics.csv\n", pipelineNameClean)
+	fmt.Println()
+	
+	fmt.Println("   📝 Replace YOUR_WORKFLOW_START_TIME with the actual start time from 'charonctl run'")
+	fmt.Println("   📝 Note: Adjust the Prometheus URL if different from http://localhost:9090")
+	
 	return nil
 }

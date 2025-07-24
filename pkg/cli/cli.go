@@ -159,6 +159,7 @@ func (c *CLI) completer(d prompt.Document) []prompt.Suggest {
 				{Text: "--end", Description: "End time (RFC3339 or Unix timestamp)"},
 				{Text: "--step", Description: "Step duration (e.g., 30s, 1m, 5m)"},
 				{Text: "--output", Description: "Output file path"},
+				{Text: "--format", Description: "Output format: json or csv"},
 				{Text: "--list-metrics", Description: "List all available metrics from Prometheus"},
 			}
 		}

@@ -1,0 +1,27 @@
+kind: InterStepBufferService
+apiVersion: numaflow.numaproj.io/v1alpha1
+metadata:
+  name: default
+spec:
+  jetstream:
+    version: latest
+    replicas: 3
+    # containerTemplate:
+    #   resources:
+    #     limits:
+    #       cpu: "4"
+    #       memory: 2Gi
+    persistence:
+      volumeSize: 3Gi
+      storageClassName: numaflow-local-storage
+    bufferConfig: |
+      stream:
+        # 0: Limits, 1: Interest, 2: WorkQueue
+        retention: 2
+        maxMsgs: 50000
+        maxAge: 1h
+        maxBytes: -1
+        # 0: File, 1: Memory
+        storage: 0
+        replicas: 3
+        duplicates: 15m

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,11 +27,12 @@ func (c *CLI) executeMetrics(args []string) error {
 		fmt.Println("   Usage: metrics <prometheus-url> [options]")
 		fmt.Println("   Options:")
 		fmt.Println("     --start <timestamp>     Start time (RFC3339 or Unix timestamp)")
-		fmt.Println("     --end <timestamp>       End time (RFC3339 or Unix timestamp)")
+		fmt.Println("     --end <timestamp>       End time (RFC3339 or Unix timestamp, defaults to current time)")
 		fmt.Println("     --step <duration>       Step duration (e.g., 30s, 1m, 5m)")
 		fmt.Println("     --query <query>         PromQL query to execute (can be used multiple times)")
 		fmt.Println("     --queries-file <file>   File containing list of PromQL queries (one per line)")
 		fmt.Println("     --output <file>         Output file path (default: metrics.json)")
+		fmt.Println("     --format <format>       Output format: json or csv (default: json)")
 		fmt.Println("     --list-metrics          List all available metrics from Prometheus")
 		fmt.Println("")
 		fmt.Println("   Examples:")
@@ -38,8 +40,14 @@ func (c *CLI) executeMetrics(args []string) error {
 		fmt.Println("     metrics http://localhost:9090")
 		fmt.Println("     metrics http://localhost:9090 --query 'up' --query 'prometheus_tsdb_head_series'")
 		fmt.Println("     metrics http://localhost:9090 --queries-file my_queries.txt --output metrics.json")
+		fmt.Println("     metrics http://localhost:9090 --queries-file my_queries.txt --format csv --output metrics.csv")
 		fmt.Println("     metrics http://localhost:9090 --start 2024-01-01T00:00:00Z --end 2024-01-01T01:00:00Z")
-		fmt.Println("     metrics http://localhost:9090 --step 1m --query 'cpu_usage_percent'")
+		fmt.Println("     metrics http://localhost:9090 --step 1m --query 'cpu_usage_percent' --format csv")
+		fmt.Println("     metrics http://localhost:9090 --start 2024-01-01T00:00:00Z  # collects to current time")
+		fmt.Println("")
+		fmt.Println("   Time behavior:")
+		fmt.Println("     - If only --start is specified, metrics are collected from start time to current time")
+		fmt.Println("     - If neither --start nor --end is specified, uses last 1 hour by default")
 		fmt.Println("")
 		fmt.Println("   Queries file format (one query per line):")
 		fmt.Println("     up")
@@ -61,6 +69,7 @@ func (c *CLI) executeMetrics(args []string) error {
 
 	fmt.Printf("   Prometheus URL: %s\n", prometheusURL)
 	fmt.Printf("   Output file: %s\n", options.outputFile)
+	fmt.Printf("   Output format: %s\n", options.format)
 	
 	if len(options.queries) > 0 {
 		fmt.Printf("   Queries (%d):\n", len(options.queries))
@@ -151,7 +160,7 @@ func (c *CLI) executeMetrics(args []string) error {
 
 	// Save metrics to file
 	fmt.Printf("   Status: Saving metrics to %s...\n", options.outputFile)
-	if err := c.saveMetricsToFile(metricsData, options.outputFile, queriesToExecute); err != nil {
+	if err := c.saveMetricsToFile(metricsData, options.outputFile, queriesToExecute, options.format); err != nil {
 		return fmt.Errorf("failed to save metrics: %v", err)
 	}
 
@@ -168,6 +177,7 @@ type MetricsOptions struct {
 	queries      []string      // Multiple queries from --query flags
 	queriesFile  string        // File containing queries
 	outputFile   string
+	format       string        // Output format: json or csv
 	listMetrics  bool
 }
 
@@ -175,6 +185,7 @@ type MetricsOptions struct {
 func (c *CLI) parseMetricsOptions(args []string) (*MetricsOptions, error) {
 	options := &MetricsOptions{
 		outputFile: "metrics.json",
+		format:     "json",
 		step:       "30s",
 	}
 
@@ -230,6 +241,17 @@ func (c *CLI) parseMetricsOptions(args []string) (*MetricsOptions, error) {
 			i++
 			options.outputFile = args[i]
 
+		case "--format":
+			if i+1 >= len(args) {
+				return nil, fmt.Errorf("--format requires a format (json or csv)")
+			}
+			i++
+			format := strings.ToLower(args[i])
+			if format != "json" && format != "csv" {
+				return nil, fmt.Errorf("invalid format '%s': must be 'json' or 'csv'", args[i])
+			}
+			options.format = format
+
 		case "--list-metrics":
 			options.listMetrics = true
 
@@ -243,15 +265,21 @@ func (c *CLI) parseMetricsOptions(args []string) (*MetricsOptions, error) {
 		return nil, fmt.Errorf("cannot specify both --query and --queries-file options")
 	}
 
+	// Auto-adjust output file extension based on format if default file is used
+	if options.outputFile == "metrics.json" && options.format == "csv" {
+		options.outputFile = "metrics.csv"
+	}
+
 	// Set default time range if not specified
-	// Only set default time range if user hasn't specified any time-related options
 	if options.startTime.IsZero() && options.endTime.IsZero() && len(options.queries) == 0 && options.queriesFile == "" {
-		// For default queries, use range queries with last hour
+		// For default queries with no time specified, use range queries with last hour
 		options.endTime = time.Now()
 		options.startTime = options.endTime.Add(-1 * time.Hour)
 	} else if !options.startTime.IsZero() && options.endTime.IsZero() {
+		// If start time is specified but end time is not, use current time as end time
 		options.endTime = time.Now()
 	} else if options.startTime.IsZero() && !options.endTime.IsZero() {
+		// If end time is specified but start time is not, use 1 hour before end time
 		options.startTime = options.endTime.Add(-1 * time.Hour)
 	}
 	// If both startTime and endTime are zero, do instant queries
@@ -358,8 +386,26 @@ func (c *CLI) queryPrometheus(prometheusURL string, options *MetricsOptions) (*P
 	return &promResp, nil
 }
 
-// saveMetricsToFile saves the collected metrics to a JSON file
-func (c *CLI) saveMetricsToFile(metricsData []PrometheusResponse, outputFile string, queries []string) error {
+// saveMetricsToFile saves the collected metrics to a JSON or CSV file
+func (c *CLI) saveMetricsToFile(metricsData []PrometheusResponse, outputFile string, queries []string, format string) error {
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	switch format {
+	case "json":
+		return c.saveAsJSON(file, metricsData, queries)
+	case "csv":
+		return c.saveAsCSV(file, metricsData, queries)
+	default:
+		return fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
+// saveAsJSON saves metrics in JSON format
+func (c *CLI) saveAsJSON(file *os.File, metricsData []PrometheusResponse, queries []string) error {
 	// Create a structured output with query information
 	results := make([]map[string]interface{}, len(metricsData))
 	
@@ -383,15 +429,198 @@ func (c *CLI) saveMetricsToFile(metricsData []PrometheusResponse, outputFile str
 		"results":       results,
 	}
 
-	file, err := os.Create(outputFile)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(output)
+}
+
+// saveAsCSV saves metrics in CSV format
+func (c *CLI) saveAsCSV(file *os.File, metricsData []PrometheusResponse, queries []string) error {
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	// Write CSV header
+	header := []string{"timestamp", "query", "metric_name", "labels", "value", "result_timestamp"}
+	if err := writer.Write(header); err != nil {
+		return fmt.Errorf("failed to write CSV header: %v", err)
+	}
+
+	exportTime := time.Now().Format(time.RFC3339)
+
+	// Process each query result
+	for i, data := range metricsData {
+		var queryName string
+		if i < len(queries) {
+			queryName = queries[i]
+		} else {
+			queryName = fmt.Sprintf("query_%d", i+1)
+		}
+
+		// Parse the Prometheus response directly
+		var promData struct {
+			ResultType string      `json:"resultType"`
+			Result     interface{} `json:"result"`
+		}
+
+		if err := json.Unmarshal(data.Data, &promData); err != nil {
+			// Write error row
+			row := []string{exportTime, queryName, "parse_error", "", "", ""}
+			if err := writer.Write(row); err != nil {
+				return fmt.Errorf("failed to write CSV row: %v", err)
+			}
+			continue
+		}
+
+		// Handle different result types based on resultType
+		switch promData.ResultType {
+		case "vector":
+			// Instant vector query
+			if results, ok := promData.Result.([]interface{}); ok {
+				for _, result := range results {
+					if resultMap, ok := result.(map[string]interface{}); ok {
+						c.writeVectorResultToCSV(writer, exportTime, queryName, resultMap)
+					}
+				}
+			}
+		case "matrix":
+			// Range vector query
+			if results, ok := promData.Result.([]interface{}); ok {
+				for _, result := range results {
+					if resultMap, ok := result.(map[string]interface{}); ok {
+						c.writeMatrixResultToCSV(writer, exportTime, queryName, resultMap)
+					}
+				}
+			}
+		case "scalar":
+			// Scalar value
+			if resultArray, ok := promData.Result.([]interface{}); ok && len(resultArray) == 2 {
+				timestamp := ""
+				value := ""
+				
+				if ts, ok := resultArray[0].(float64); ok {
+					timestamp = time.Unix(int64(ts), 0).Format(time.RFC3339)
+				}
+				
+				if val, ok := resultArray[1].(string); ok {
+					value = val
+				}
+
+				row := []string{exportTime, queryName, "scalar", "", value, timestamp}
+				if err := writer.Write(row); err != nil {
+					return fmt.Errorf("failed to write CSV row: %v", err)
+				}
+			}
+		case "string":
+			// String value
+			if resultArray, ok := promData.Result.([]interface{}); ok && len(resultArray) == 2 {
+				timestamp := ""
+				value := ""
+				
+				if ts, ok := resultArray[0].(float64); ok {
+					timestamp = time.Unix(int64(ts), 0).Format(time.RFC3339)
+				}
+				
+				if val, ok := resultArray[1].(string); ok {
+					value = val
+				}
+
+				row := []string{exportTime, queryName, "string", "", value, timestamp}
+				if err := writer.Write(row); err != nil {
+					return fmt.Errorf("failed to write CSV row: %v", err)
+				}
+			}
+		default:
+			// Unknown result type
+			row := []string{exportTime, queryName, "unknown_type", promData.ResultType, "", ""}
+			if err := writer.Write(row); err != nil {
+				return fmt.Errorf("failed to write CSV row: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// writeVectorResultToCSV writes a vector result to CSV
+func (c *CLI) writeVectorResultToCSV(writer *csv.Writer, exportTime, queryName string, result map[string]interface{}) {
+	metric, _ := result["metric"].(map[string]interface{})
+	
+	// Extract metric name
+	metricName := ""
+	if name, ok := metric["__name__"].(string); ok {
+		metricName = name
+	}
+
+	// Build labels string (excluding __name__)
+	var labelPairs []string
+	for k, v := range metric {
+		if k != "__name__" {
+			if strVal, ok := v.(string); ok {
+				labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", k, strVal))
+			}
+		}
+	}
+	labelsStr := strings.Join(labelPairs, ",")
+
+	// Extract value
+	if value, ok := result["value"].([]interface{}); ok && len(value) == 2 {
+		timestamp := ""
+		val := ""
+		
+		if ts, ok := value[0].(float64); ok {
+			timestamp = time.Unix(int64(ts), 0).Format(time.RFC3339)
+		}
+		
+		if v, ok := value[1].(string); ok {
+			val = v
+		}
+
+		row := []string{exportTime, queryName, metricName, labelsStr, val, timestamp}
+		writer.Write(row)
+	}
+}
+
+// writeMatrixResultToCSV writes a matrix result to CSV
+func (c *CLI) writeMatrixResultToCSV(writer *csv.Writer, exportTime, queryName string, result map[string]interface{}) {
+	metric, _ := result["metric"].(map[string]interface{})
+	
+	// Extract metric name
+	metricName := ""
+	if name, ok := metric["__name__"].(string); ok {
+		metricName = name
+	}
+
+	// Build labels string (excluding __name__)
+	var labelPairs []string
+	for k, v := range metric {
+		if k != "__name__" {
+			if strVal, ok := v.(string); ok {
+				labelPairs = append(labelPairs, fmt.Sprintf("%s=%s", k, strVal))
+			}
+		}
+	}
+	labelsStr := strings.Join(labelPairs, ",")
+
+	// Extract values array
+	if values, ok := result["values"].([]interface{}); ok {
+		for _, valueArray := range values {
+			if valPair, ok := valueArray.([]interface{}); ok && len(valPair) == 2 {
+				timestamp := ""
+				value := ""
+				
+				if ts, ok := valPair[0].(float64); ok {
+					timestamp = time.Unix(int64(ts), 0).Format(time.RFC3339)
+				}
+				
+				if val, ok := valPair[1].(string); ok {
+					value = val
+				}
+
+				row := []string{exportTime, queryName, metricName, labelsStr, value, timestamp}
+				writer.Write(row)
+			}
+		}
+	}
 }
 
 // listPrometheusMetrics fetches and displays all available metrics from Prometheus

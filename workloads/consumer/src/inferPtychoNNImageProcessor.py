@@ -36,33 +36,38 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         return nrm.nrm_time_fromns(time.time_ns())
 
     def __instrumentation_framesprocessed(self, total, delta):
-        with self.nrm_lock:
-            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_frames,
-                                    self.nrm_allscope, total)
+        if not self.no_nrm and self.nrmclient:
+            with self.nrm_lock:
+                self.nrmclient.send_event(self.__nrm_now__(), self.nrm_frames,
+                                        self.nrm_allscope, total)
         self.promnFramesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_batchesprocessed(self, total, delta):
-        with self.nrm_lock:
-            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_batches,
-                                    self.nrm_allscope, total)
+        if not self.no_nrm and self.nrmclient:
+            with self.nrm_lock:
+                self.nrmclient.send_event(self.__nrm_now__(), self.nrm_batches,
+                                        self.nrm_allscope, total)
         self.promnBatchesProcessed.labels(self.processorId).inc(delta)
 
     def __instrumentation_infertime(self, total, delta):
-        with self.nrm_lock:
-            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
-                                    self.nrm_allscope, total)
+        if not self.no_nrm and self.nrmclient:
+            with self.nrm_lock:
+                self.nrmclient.send_event(self.__nrm_now__(), self.nrm_infer,
+                                        self.nrm_allscope, total)
         self.prominferTime.labels(self.processorId).inc(delta)
 
     def __instrumentation_processing_rate(self, rate):
-        with self.nrm_lock:
-            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_rate,
-                                    self.nrm_allscope, rate)
+        if not self.no_nrm and self.nrmclient:
+            with self.nrm_lock:
+                self.nrmclient.send_event(self.__nrm_now__(), self.nrm_rate,
+                                        self.nrm_allscope, rate)
         self.promnFramesProcessingRate.labels(self.processorId).set(rate)
 
     def __instrumentation_queued(self, f):
-        with self.nrm_lock:
-            self.nrmclient.send_event(self.__nrm_now__(), self.nrm_queued,
-                                    self.nrm_allscope, f)
+        if not self.no_nrm and self.nrmclient:
+            with self.nrm_lock:
+                self.nrmclient.send_event(self.__nrm_now__(), self.nrm_queued,
+                                        self.nrm_allscope, f)
         self.promnFramesQueued.labels(self.processorId).set(f)
 
     def __init__(self, configDict={}):
@@ -75,8 +80,14 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
         self.inferTime = 0
         self.logger.info(f'Processor ID: {self.processorId}')
 
-        self.logger.info("Initializing NRM client...")
-        self.__nrm_init__()
+        # Check if NRM should be disabled
+        self.no_nrm = configDict.get('no_nrm', False)
+        if not self.no_nrm:
+            self.logger.info("Initializing NRM client...")
+            self.__nrm_init__()
+        else:
+            self.logger.info("NRM client disabled via configuration")
+            self.nrmclient = None
 
         self.promnFramesProcessed = Counter(
             "pvapy_frame_processed",
@@ -197,7 +208,8 @@ class InferPtychoNNImageProcessor(AdImageProcessor):
 
     def start(self):
         self.inferThread = threading.Thread(target=self.inferWorker)
-        self.__nrm_add_sensors__()
+        if not self.no_nrm and self.nrmclient:
+            self.__nrm_add_sensors__()
         self.inferThread.start()
 
     def stop(self):

@@ -3,13 +3,93 @@
 # Lines starting with # are comments and will be ignored
 # Empty lines are also ignored
 
-# Basic health checks
-up
-prometheus_tsdb_head_series
+# Metrics in the Messaging Layer
+# Provides the total number of messages read by a given Vertex from an Inter-Step Buffer Partition or Source
+forwarder_read_total
+# Provides the total number of bytes read by a given Vertex from an Inter-Step Buffer Partition or Source
+forwarder_read_bytes_total
+# Provides the total number of messages written to Inter-Step Buffer by a given Vertex
+forwarder_write_total
+# Provides the total number of bytes written to Inter-Step Buffer by a given Vertex
+forwarder_write_bytes_total
+# Provides the total number of messages acknowledged by a given Vertex from an Inter-Step Buffer Partition
+forwarder_ack_total
+# Provides the total number of messages dropped by a given Vertex due to a full Inter-Step Buffer Partition
+forwarder_drop_total
+# Provides the average pending messages in the last period of seconds. It is the pending messages of a vertex
+vertex_pending_messages
+# Indicates if the ISB is full. Continual increase of this counter metric indicates a potential backpressure that can be built on the pipeline
+isb_jetstream_isFull_total
+# Indicates the usage/utilization of a NATS Jetstream ISB
+isb_jetstream_buffer_soft_usage
+# Indicate the number of pending messages at a given point in time.
+isb_jetstream_buffer_pending
+# Indicates the number of messages pending acknowledge at a given point in time
+isb_jetstream_buffer_ack_pending
 
-# TSDB metrics
-prometheus_tsdb_head_samples_appended_total
-prometheus_tsdb_head_chunks
+# Control metrics
+# A metric indicates the desired replicas of a Vertex
+controller_vertex_desired_replicas
+# A metric indicates the current replicas of a Vertex
+controller_vertex_current_replicas
+# A metric indicates the min replicas of a Vertex
+controller_vertex_min_replicas
+# A metric indicates the max replicas of a Vertex
+controller_vertex_max_replicas
+
+# Container metrics
+# CPU usage rate for containers (seconds of CPU time consumed per second)
+container_cpu_usage_seconds_total
+# CPU usage as a percentage of the container's CPU limit
+container_cpu_cfs_throttled_seconds_total
+# Number of times the container was throttled due to CPU limits
+container_cpu_cfs_throttled_periods_total
+# Total number of CPU throttling periods
+container_cpu_cfs_periods_total
+# Memory usage in bytes
+container_memory_usage_bytes
+# Memory working set in bytes (memory that cannot be reclaimed)
+container_memory_working_set_bytes
+# Memory limit for the container in bytes
+container_spec_memory_limit_bytes
+# Memory cache usage in bytes
+container_memory_cache
+# Memory RSS (Resident Set Size) usage in bytes
+container_memory_rss
+# Number of major page faults
+container_memory_failcnt
+# Network bytes received
+container_network_receive_bytes_total
+# Network bytes transmitted
+container_network_transmit_bytes_total
+# Network packets received
+container_network_receive_packets_total
+# Network packets transmitted
+container_network_transmit_packets_total
+# Network receive errors
+container_network_receive_errors_total
+# Network transmit errors
+container_network_transmit_errors_total
+# Network receive packet drops
+container_network_receive_packets_dropped_total
+# Network transmit packet drops
+container_network_transmit_packets_dropped_total
+# Filesystem bytes read
+container_fs_reads_bytes_total
+# Filesystem bytes written
+container_fs_writes_bytes_total
+# Filesystem read operations
+container_fs_reads_total
+# Filesystem write operations
+container_fs_writes_total
+# Filesystem usage in bytes
+container_fs_usage_bytes
+# Filesystem limit in bytes
+container_fs_limit_bytes
+# Container start time
+container_start_time_seconds
+# Container last seen timestamp
+container_last_seen
 
 # Node exporter metrics (if available)
 node_cpu_seconds_total
@@ -18,3 +98,37 @@ node_memory_MemAvailable_bytes
 # Kubernetes metrics (if available)
 kube_pod_status_phase
 kube_node_status_condition
+
+# Nvidia DCGM metrics
+# GPU utilization percentage (0-100)
+DCGM_FI_DEV_GPU_UTIL
+# GPU memory utilization percentage (0-100)
+DCGM_FI_DEV_MEM_COPY_UTIL
+# GPU power usage in watts
+DCGM_FI_DEV_POWER_USAGE
+# GPU temperature in Celsius
+DCGM_FI_DEV_GPU_TEMP
+# GPU memory used in bytes
+DCGM_FI_DEV_FB_USED
+# GPU memory free in bytes
+DCGM_FI_DEV_FB_FREE
+# GPU memory total in bytes
+DCGM_FI_DEV_FB_TOTAL
+# GPU SM (Streaming Multiprocessor) utilization percentage
+DCGM_FI_DEV_SM_UTIL
+# GPU memory bandwidth utilization percentage
+DCGM_FI_DEV_DRAM_UTIL
+# GPU clock frequency in MHz
+DCGM_FI_DEV_SM_CLOCK
+# GPU memory clock frequency in MHz
+DCGM_FI_DEV_MEM_CLOCK
+# GPU PCIe replay errors
+DCGM_FI_DEV_PCIE_REPLAY_COUNTER
+
+# PvaPy metrics (optional, if the metrics are available)
+# Number of processed frames
+pvapy_frame_processed_total
+# Processing rate of frames
+pvapy_frame_processingrate
+# Number of queued frames
+pvapy_frame_queued

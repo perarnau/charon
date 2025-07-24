@@ -6,7 +6,7 @@ spec:
   containers:
   - args:
     - --channel-name
-    - pva:image
+    - ad:image
     - --n-x-pixels
     - '512'
     - --n-y-pixels
@@ -14,9 +14,9 @@ spec:
     - --datatype
     - int16
     - --frame-rate
-    - '100'
-    - --runtime
     - '300'
+    - --runtime
+    - '120'
     - --disable-curses
     command:
     - pvapy-ad-sim-server

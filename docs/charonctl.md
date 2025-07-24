@@ -103,6 +103,46 @@ stop analytics-pipeline monitoring
 - Numaflow CRDs installed in the cluster
 - Appropriate permissions to delete pipelines
 
+### `metrics <prometheus-url> [options]`
+
+Collect and export metrics data from a Prometheus server for analysis and monitoring.
+
+**Example:**
+```bash
+metrics http://localhost:9090 --list-metrics
+metrics http://localhost:9090 --query 'up' --output system-status.json
+metrics http://localhost:9090 --queries-file ptychography-queries.txt --format csv --output experiment-metrics.csv
+metrics http://localhost:9090 --start 2024-01-01T00:00:00Z --end 2024-01-01T01:00:00Z --step 1m
+```
+
+**Options:**
+- `--start <timestamp>` - Start time (RFC3339 format or Unix timestamp)
+- `--end <timestamp>` - End time (RFC3339 format or Unix timestamp, defaults to current time)
+- `--step <duration>` - Step duration for time series queries (e.g., 30s, 1m, 5m)
+- `--query <query>` - PromQL query to execute (can be used multiple times)
+- `--queries-file <file>` - File containing list of PromQL queries (one per line)
+- `--output <file>` - Output file path (default: metrics.json)
+- `--format <format>` - Output format: json or csv (default: json)
+- `--list-metrics` - List all available metrics from Prometheus
+
+**Features:**
+- Supports both individual queries and batch queries from files
+- Multiple output formats (JSON, CSV) for different analysis tools
+- Flexible time range specification with RFC3339 or Unix timestamps
+- Automatic connection testing and validation
+- Integration with Kubernetes port-forwarding for cluster access
+- Default metrics collection when no specific queries are provided
+
+**Time Behavior:**
+- If only `--start` is specified, metrics are collected from start time to current time
+- If neither `--start` nor `--end` is specified, uses last 1 hour by default
+- Step parameter controls the resolution of time series data
+
+**Prerequisites:**
+- Prometheus server must be accessible at the specified URL
+- For Kubernetes deployments: `kubectl port-forward -n monitoring svc/prometheus 9090:9090`
+- Queries file format: one PromQL query per line
+
 ### `help`
 
 Display available commands and usage information.
@@ -171,11 +211,28 @@ charon> stop my-pipeline        # Stop pipeline in default namespace
 charon> stop data-proc prod     # Stop pipeline in specific namespace
 ```
 
+### Collecting Metrics
+
+Set up port-forwarding and collect metrics:
+```bash
+# In a separate terminal, set up port-forwarding to Prometheus
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+
+# In charonctl, collect metrics
+./charonctl
+charon> metrics http://localhost:9090 --list-metrics                    # List all available metrics
+charon> metrics http://localhost:9090 --query 'up'                      # Simple query
+charon> metrics http://localhost:9090 --queries-file workflows/aps/metrics.txt --format csv --output ptychography-metrics.csv
+charon> metrics http://localhost:9090 --start 2024-01-01T10:00:00Z --end 2024-01-01T11:00:00Z --step 1m --format json
+```
+
 ### Complete Pipeline Lifecycle
 
-Deploy and manage Numaflow pipelines:
+Deploy and manage Numaflow pipelines with metrics collection:
 ```bash
 charon> run https://raw.githubusercontent.com/numaproj/numaflow/main/examples/1-simple-pipeline.yaml
+# ... wait for pipeline to run ...
+charon> metrics http://localhost:9090 --queries-file workflows/aps/metrics.txt --format csv --output simple-pipeline-metrics.csv
 charon> stop simple-pipeline  # Stop the deployed pipeline
 ```
 
