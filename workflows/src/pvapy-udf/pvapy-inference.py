@@ -1,10 +1,18 @@
 import os
 import argparse
 import logging
+import time
 
 
 from collections.abc import AsyncIterable
-from pynumaflow.mapstreamer import Message, Datum, MapStreamAsyncServer, MapStreamer
+from pynumaflow.batchmapper import (
+    Message,
+    Datum,
+    BatchMapper,
+    BatchMapAsyncServer,
+    BatchResponses,
+    BatchResponse,
+)
 import numpy as np
 
 from helper import inference
@@ -32,14 +40,12 @@ def parse_arguments():
     return parser.parse_args()
 
 
-class PtychoNNStream(MapStreamer):
+class PtychoNNBatch(BatchMapper):
     def __init__(self, model_path: str, bsz_size: int, output_size: tuple[int, int]=(64, 64)):
         """
-        Initializes the PtychoNNStream class.
+        Initializes the PtychoNNBatch class for batch processing.
         """
         self.bsz_size = bsz_size
-        self.batch_list = []
-        self.frame_id_list = []
         self.output_size = output_size
 
         # pycuda must be imported within the same thread as the actual cuda execution
@@ -64,7 +70,7 @@ class PtychoNNStream(MapStreamer):
         self.trt_context.set_tensor_address(self.trt_engine.get_tensor_name(0), int(self.trt_din)) # input buffer
         self.trt_context.set_tensor_address(self.trt_engine.get_tensor_name(1), int(self.trt_dout)) #output buffer
 
-    def batch_infer(self, in_mb, in_frm_id, bsz=8):
+    def batch_infer(self, in_mb, bsz=8):
         # NOTE: model output is always 128,128
         mx = 128
         my = 128
@@ -76,50 +82,148 @@ class PtychoNNStream(MapStreamer):
         pred = np.array(inference(self.trt_context, self.trt_hin, self.trt_hout, \
                              self.trt_din, self.trt_dout, self.trt_stream))
 
+        logging.debug(f"Raw pred shape: {pred.shape}, pred size: {pred.size}")
+        logging.debug(f"Trying to reshape to: ({bsz}, {mx*my})")
         pred = pred.reshape(bsz, mx*my)
-        for j in range(0, len(in_frm_id)):
+        logging.debug(f"After reshape: {pred.shape}")
+        
+        results = []
+        for j in range(bsz):
             image = pred[j].reshape(my,mx)
-
             startx = mx//2-(ox//2)
             starty = my//2-(oy//2)
             image = image[starty:starty+oy,startx:startx+ox]
-            yield in_frm_id[j], image
+            results.append(image)
+        logging.debug(f"batch_infer returning {len(results)} results")
+        return results
 
-    async def handler(self, keys: list[str], datum: Datum) -> AsyncIterable[Message]:
+    async def handler(self, datums: AsyncIterable[Datum]) -> BatchResponses:
         """
-        A handler that splits the input datum value into multiple strings by `,` separator and
-        emits them as a stream.
+        BatchMapper handler that processes inference on batched frames.
+        This properly handles message acknowledgment for ISB service.
         """
-        val = datum.value
-        event_time = datum.event_time
-        _ = datum.watermark
-        headers = datum.headers
-        frameId = headers.get("x-txn-id", None)
-        if frameId is None:
-            yield Message.to_drop()
-            logging.error(f"Missing x-txn-id header: {headers}")
-            return
+        logging.info("Handler called - starting to collect datums")
+        batch_responses = BatchResponses()
         
-        # NOTE: The pvapy-udsource specifies the data type as int16.
-        in_frame = np.frombuffer(val, dtype=np.int16)
-        self.batch_list.append(in_frame)
-        self.frame_id_list.append(frameId)
+        # Collect all datums into lists for batch processing
+        batch_list = []
+        datum_list = []
+        
+        datum_count = 0
+        async for datum in datums:
+            datum_count += 1
+            logging.debug(f"Processing datum {datum_count}")
+            
+            val = datum.value
+            headers = datum.headers
+            frameId = headers.get("x-txn-id", None)
+            
+            if frameId is None:
+                logging.error(f"Missing x-txn-id header: {headers}")
+                # Create response for this datum (drop message)
+                batch_response = BatchResponse.from_id(datum.id)
+                batch_response.append(Message.to_drop())
+                batch_responses.append(batch_response)
+                continue
+            
+            # NOTE: The pvapy-udsource specifies the data type as int16.
+            in_frame = np.frombuffer(val, dtype=np.int16)
+            batch_list.append(in_frame)
+            datum_list.append(datum)
+            
+            # Safety check to prevent infinite loops
+            if datum_count > 1000:
+                logging.error(f"Too many datums received: {datum_count}. Breaking to prevent infinite loop.")
+                break
+        
+        logging.info(f"Finished collecting datums. Total: {datum_count}")
+        logging.debug(f"Collected {len(batch_list)} frames and {len(datum_list)} datums")
+        
+        start_time = time.time()
+        
+        # Only process if we have enough frames for at least one full batch
+        if len(batch_list) < self.bsz_size:
+            logging.warning(f"Not enough frames for batch inference. Got {len(batch_list)}, need {self.bsz_size}. Dropping batch.")
+            # Create drop responses for all datums
+            for datum in datum_list:
+                batch_response = BatchResponse.from_id(datum.id)
+                batch_response.append(Message.to_drop())
+                batch_responses.append(batch_response)
+            logging.info(f"Dropped batch processing took {time.time() - start_time:.3f}s")
+            return batch_responses
+        
+        logging.info(f"Starting batch processing with {len(batch_list)} frames")
+        
+        # Process batches of the configured size
+        processed_count = 0
+        while processed_count + self.bsz_size <= len(batch_list):
+            batch_start_time = time.time()
+            
+            # Get the current batch slice
+            end_idx = processed_count + self.bsz_size
+            current_batch_size = self.bsz_size  # Always use full batch size
+            
+            # Prepare batch data for inference
+            current_batch = batch_list[processed_count:end_idx]
+            current_datums = datum_list[processed_count:end_idx]
+            
+            # Convert to numpy array for inference
+            batch_chunk = np.array(current_batch).astype(np.float32)
+            logging.debug(f"About to call batch_infer with batch_chunk.shape: {batch_chunk.shape}, current_batch_size: {current_batch_size}")
+            
+            # Perform inference on the current batch
+            inference_start = time.time()
+            inference_results = self.batch_infer(batch_chunk, current_batch_size)
+            inference_time = time.time() - inference_start
+            logging.debug(f"batch_infer returned {len(inference_results)} results in {inference_time:.3f}s")
+            
+            # Create responses for each item in the current batch
+            response_start = time.time()
+            for i, (result_image, datum) in enumerate(zip(inference_results, current_datums)):
+                batch_response = BatchResponse.from_id(datum.id)
+                
+                # Get frameId from headers
+                frameId = datum.headers.get("x-txn-id", None)
+                
+                # Ensure keys is a proper list
+                # NOTE: 2025-07-12 21:35:43,526 - root - INFO - OUTPUT Message 0: image_bytes=8192B, keys_size=1504904B
+                #       the size of keys is very large, resulting in hitting the max message size limit when forwarding to ISB
+                keys = []
+                if hasattr(datum, 'keys') and datum.keys:
+                    if isinstance(datum.keys, (list, tuple)):
+                        keys = list(datum.keys)
+                    else:
+                        keys = [str(datum.keys)]
+                
+                # logging.debug(f"Creating message with keys: {keys}, type: {type(keys)}")
+                keys_size = sum(len(str(k).encode('utf-8')) for k in keys) if keys else 0
 
-        if len(self.batch_list) >= self.bsz_size:
-            batch_chunk = (np.array(self.batch_list[:self.bsz_size]).astype(np.float32))
-            self.batch_list = self.batch_list[self.bsz_size:]
+                logging.debug(f"OUTPUT Message {i}: frameId={frameId}, image_bytes={len(result_image.astype(np.int16).tobytes())}B, keys_size={keys_size}B")
 
-            batch_frame_id = self.frame_id_list[:self.bsz_size]
-            self.frame_id_list = self.frame_id_list[self.bsz_size:]
-
-            # Perform inference
-            for out_frame_id, out_image in self.batch_infer(batch_chunk, batch_frame_id, self.bsz_size):
-                out_headers = headers.copy()
-                out_headers["x-txn-id"] = out_frame_id
-                # TODO: Needs to add keys and tags to the Message
-                yield Message(
-                    out_image.astype(np.int16).tobytes(),
-                )
+                batch_response.append(Message(
+                    value=result_image.astype(np.int16).tobytes(),
+                    # keys=keys
+                ))
+                batch_responses.append(batch_response)
+            
+            response_time = time.time() - response_start
+            batch_time = time.time() - batch_start_time
+            
+            processed_count = end_idx
+            logging.info(f"Processed batch {processed_count//self.bsz_size}: inference={inference_time:.3f}s, response_creation={response_time:.3f}s, total={batch_time:.3f}s")
+        
+        # Handle any remaining frames that don't form a complete batch
+        if processed_count < len(batch_list):
+            logging.warning(f"Dropping {len(batch_list) - processed_count} remaining frames that don't form a complete batch")
+            # Create drop responses for remaining datums
+            for i in range(processed_count, len(datum_list)):
+                batch_response = BatchResponse.from_id(datum_list[i].id)
+                batch_response.append(Message.to_drop())
+                batch_responses.append(batch_response)
+        
+        total_time = time.time() - start_time
+        logging.info(f"Handler completed in {total_time:.3f}s. Returning {len(batch_responses)} responses")
+        return batch_responses
 
 
 if __name__ == "__main__":
@@ -146,9 +250,9 @@ if __name__ == "__main__":
     if output_size[0] <= 0 or output_size[1] <= 0:
         raise ValueError("Output size must be positive integers")
 
-    handler = PtychoNNStream(
+    handler = PtychoNNBatch(
         model_path=args.model_path,
         bsz_size=args.bsz_size,
         output_size=output_size,)
-    grpc_server = MapStreamAsyncServer(handler)
+    grpc_server = BatchMapAsyncServer(handler)
     grpc_server.start()
