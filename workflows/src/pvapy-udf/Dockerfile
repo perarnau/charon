@@ -23,7 +23,7 @@ COPY requirements.txt $APP_PATH/
 RUN pip3 install --upgrade pip \
   && pip3 install -r $APP_PATH/requirements.txt
 
-COPY pvapy-inference.py helper.py entry.sh $APP_PATH/
+COPY pvapy-inference.py pvapy-inference-concurrent.py pvapy-inference-pipelined.py helper.py entry.sh $APP_PATH/
 ENV PYTHONPATH="${PYTHONPATH}:${APP_PATH}"
 
 RUN chmod +x $APP_PATH/entry.sh

@@ -1,0 +1,5 @@
+# Ignore files that don't need to be in the Docker context
+*.md
+.git
+.gitignore
+Makefile
