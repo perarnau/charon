@@ -50,6 +50,18 @@ func (c *CLI) executeProvision(args []string) error {
 		return fmt.Errorf("ansible-playbook not found: %v", err)
 	}
 
+	// Check if ansible-galaxy is available for installing collections
+	if _, err := exec.LookPath("ansible-galaxy"); err != nil {
+		fmt.Println("   Warning: ansible-galaxy command not found in PATH")
+		fmt.Println("   Some collections may not be available")
+	} else {
+		// Install required Ansible collections
+		if err := installAnsibleCollections(); err != nil {
+			fmt.Printf("   Warning: Failed to install Ansible collections: %v\n", err)
+			fmt.Println("   Continuing with provisioning, but some tasks may fail...")
+		}
+	}
+
 	// Check if playbook requires sudo privileges
 	requiresSudo := checkIfPlaybookRequiresSudo(playbookPath)
 	var password string
@@ -113,12 +125,11 @@ func (c *CLI) executeProvision(args []string) error {
 			}
 
 			if password == "" {
-				fmt.Println("   Error: Password cannot be empty")
-				return fmt.Errorf("password is required for this playbook")
+				fmt.Println("   ⚠️  Empty password provided - assuming passwordless sudo is configured")
+			} else {
+				// Confirm password was received
+				fmt.Println("   ✅ Password received")
 			}
-
-			// Confirm password was received
-			fmt.Println("   ✅ Password received")
 		}
 	}
 
@@ -202,5 +213,40 @@ func (c *CLI) executeProvision(args []string) error {
 	}
 
 	fmt.Println("   ✅ Provision completed successfully!")
+	return nil
+}
+
+// installAnsibleCollections installs required Ansible collections
+func installAnsibleCollections() error {
+	fmt.Println("📦 Installing required Ansible collections...")
+
+	// Check if requirements.yml exists
+	requirementsPath := "ansible/requirements.yml"
+	if _, err := os.Stat(requirementsPath); os.IsNotExist(err) {
+		// Install essential collections directly if requirements.yml doesn't exist
+		collections := []string{
+			"kubernetes.core",
+			"community.general",
+		}
+
+		for _, collection := range collections {
+			fmt.Printf("   Installing collection: %s\n", collection)
+			cmd := exec.Command("ansible-galaxy", "collection", "install", collection)
+			if err := cmd.Run(); err != nil {
+				fmt.Printf("   Warning: Failed to install %s: %v\n", collection, err)
+			} else {
+				fmt.Printf("   ✅ Installed: %s\n", collection)
+			}
+		}
+	} else {
+		// Use requirements.yml if it exists
+		fmt.Printf("   Using requirements file: %s\n", requirementsPath)
+		cmd := exec.Command("ansible-galaxy", "collection", "install", "-r", requirementsPath)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install collections from requirements.yml: %v", err)
+		}
+		fmt.Println("   ✅ All collections installed successfully")
+	}
+
 	return nil
 }

@@ -24,12 +24,16 @@ Use `charonctl` to provision the node with Kubernetes and required dependencies:
 
 ```bash
 ./charonctl
-provision ansible/provision-masternode.yaml
+charon> provision ansible/provision-masternode.yaml
 ```
 
 Apply a custom StorageClass for ISB,
 ```bash
+# (DEPRECATED) Use apply-storage-class.sh instead
 charon> kubectl apply -f workflows/aps/numaflow-storage-class.yaml
+
+# From the top directory
+./workflows/aps/apply-storage-class.sh
 ```
 
 Deploy an ISB service for messaging,
@@ -60,6 +64,10 @@ nvidia-dcgm-dcgm-exporter-zpbq8   1/1     Running   0          7d23h
 If the isbsvc Pods exist and are in Running state, the set up is completed.
 
 ### 2. Deploy the APS Workflow
+
+#### Building Docker Images for the Workflow
+
+#### Running the Docker Images
 
 Run the NumaFlow pipeline that runs the PtychoNN model and processes X-ray data:
 

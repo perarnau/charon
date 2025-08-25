@@ -37,8 +37,8 @@
       - net-tools
       # add other packages here
   
-  # - name: Upgrade pip
-  #   ansible.builtin.shell: pip3 install --upgrade pip --break-system-packages
+  - name: Upgrade pip
+    ansible.builtin.shell: pip3 install --upgrade pip
 
   - name: Install Python packages
     ansible.builtin.shell: pip3 install kubernetes --break-system-packages
