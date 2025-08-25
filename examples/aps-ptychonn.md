@@ -143,6 +143,26 @@ The dashboard provides monitoring for:
 
 This comprehensive monitoring helps identify bottlenecks, resource constraints, and performance issues during the ptychography workflow execution.
 
+### Save Metrics
+
+To collect and save performance metrics from the workflow, you'll need to access the Prometheus endpoint and use Charon's built-in metrics collection:
+
+1. **Port forward the Prometheus endpoint**:
+```bash
+kubectl port-forward -n monitoring service/prometheus-operated 9090:9090
+```
+
+2. **Use Charonctl's metrics subcommand** to collect metrics based on the predefined query configuration:
+```bash
+# Change the start and end times to your experiment time.
+charon> metrics http://localhost:9090 --queries-file ./workflows/aps/metrics.txt --start 2025-08-18T14:47:57Z --end 2025-08-18T14:56:16Z --output ./tmp/perf-comparison/numa-fps500-autoscaler.json --format json
+
+# Just use below as a template and change the start and end times, as well as the filename.
+metrics http://localhost:9090 --queries-file ./workflows/aps/metrics.txt --start 2025-08-19T20:02:52Z --end 2025-08-19T20:17:30Z --output ./tmp/perf-comparison/numa-fps300-in-scale3-autoscaler-lessaggressive.csv --format csv
+```
+
+The `metrics.txt` file contains the Prometheus queries for collecting relevant performance data including throughput, latency, resource utilization, and pipeline-specific metrics. The collected metrics will be saved for later analysis and comparison between the NumaFlow and baseline deployments.
+
 ## Baseline Comparison
 
 For performance evaluation, this NumaFlow-based workflow can be compared against a baseline deployment that uses traditional Kubernetes resources and PvaPy for messaging. The baseline setup consists of separate deployments without the messaging layer orchestration.

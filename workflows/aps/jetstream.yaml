@@ -5,7 +5,7 @@ metadata:
 spec:
   jetstream:
     version: latest
-    replicas: 3
+    replicas: 1
     # containerTemplate:
     #   resources:
     #     limits:
@@ -22,6 +22,6 @@ spec:
         maxAge: 1h
         maxBytes: -1
         # 0: File, 1: Memory
-        storage: 0
-        replicas: 3
-        duplicates: 15m
+        storage: 1
+        replicas: 1
+        duplicates: 0s
