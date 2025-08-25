@@ -32,7 +32,7 @@ Apply a custom StorageClass for ISB,
 # (DEPRECATED) Use apply-storage-class.sh instead
 charon> kubectl apply -f workflows/aps/numaflow-storage-class.yaml
 
-# From the top directory
+# From the top directory, run it in a terminal
 ./workflows/aps/apply-storage-class.sh
 ```
 
