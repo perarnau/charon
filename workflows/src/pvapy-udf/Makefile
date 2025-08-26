@@ -168,8 +168,8 @@ push: build
 k3s-import: build
 	@echo "Saving image to tar file..."
 	docker tag "$(IMAGE_TAG)" "$(REGISTRY_TAG)"
-	docker save -o /tmp/pvapy-udsource.tar "$(REGISTRY_TAG)"
+	docker save -o /tmp/pvapy-udf.tar "$(REGISTRY_TAG)"
 	@echo "Importing to k3s..."
-	k3s ctr image import /tmp/pvapy-udsource.tar
+	k3s ctr image import /tmp/pvapy-udf.tar
 	@echo "Cleaning up tar file..."
-	rm -f /tmp/pvapy-udsource.tar
+	rm -f /tmp/pvapy-udf.tar
