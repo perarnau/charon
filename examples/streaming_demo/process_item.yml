@@ -1,0 +1,13 @@
+---
+- name: Process item {{ item_number }}
+  debug:
+    msg: "📊 Processing item {{ item_number }}/{{ task_count }} - {{ ansible_date_time.time }}"
+
+- name: Check if checkpoint
+  debug:
+    msg: "⚡ Checkpoint reached at item {{ item_number }}"
+  when: (item_number | int) % (checkpoint_interval | int) == 0
+
+- name: Wait between items
+  pause:
+    seconds: "{{ sleep_interval }}"

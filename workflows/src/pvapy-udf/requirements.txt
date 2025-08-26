@@ -1,2 +1,8 @@
 pycuda
 pynumaflow
+numpy>=1.22
+pvapy==5.3.*
+psutil
+prometheus-client
+# Additional dependencies for model conversion
+wget

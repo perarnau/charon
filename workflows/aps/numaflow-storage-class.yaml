@@ -1,0 +1,81 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: numaflow-local-storage
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: numaflow-pv-0
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 3Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: numaflow-local-storage
+  local:
+    path: /storage/numaflow-storage/pv-0
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - ${NODE_NAME}  # Will be replaced with actual node name
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: numaflow-pv-1
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 3Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: numaflow-local-storage
+  local:
+    path: /storage/numaflow-storage/pv-1
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - ${NODE_NAME}  # Will be replaced with actual node name
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: numaflow-pv-2
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 3Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: numaflow-local-storage
+  local:
+    path: /storage/numaflow-storage/pv-2
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/hostname
+          operator: In
+          values:
+          - ${NODE_NAME}  # Will be replaced with actual node name

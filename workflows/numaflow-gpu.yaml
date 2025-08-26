@@ -1,0 +1,39 @@
+apiVersion: numaflow.numaproj.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: gpu-pipeline
+spec:
+  vertices:
+    - name: in
+      scale:
+        min: 1
+      # A self data generating source
+      source:
+        generator:
+          rpu: 100
+          duration: 1s
+    - name: cat
+      scale:
+        min: 1
+      udf:
+        container:
+          image: gemblerz/ptychonn-udf:0.0.1
+          imagePullPolicy: Always
+          command: ["/bin/bash", "-c"]
+          args: ["while true; do echo 'Hello from GPU UDF'; sleep 1; done"]
+          resources:
+            limits:
+              memory: 3Gi
+            requests:
+              memory: 1Gi
+      runtimeClassName: nvidia
+    - name: out
+      scale:
+        min: 1
+      sink:
+        log: {}
+  edges:
+    - from: in
+      to: cat
+    - from: cat
+      to: out

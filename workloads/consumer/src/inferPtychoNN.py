@@ -29,6 +29,10 @@ class inferPtychoNNtrt:
             self.trt_stream = mem_allocation(self.trt_engine)
         self.trt_context = self.trt_engine.create_execution_context()
 
+        self.trt_context.set_tensor_address(self.trt_engine.get_tensor_name(0), int(self.trt_din)) # input buffer
+        self.trt_context.set_tensor_address(self.trt_engine.get_tensor_name(1), int(self.trt_dout)) #output buffer
+
+
     def stop(self):
         try:
             self.context.pop()
