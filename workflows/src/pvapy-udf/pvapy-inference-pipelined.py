@@ -314,18 +314,8 @@ if __name__ == "__main__":
     )
 
     args = parse_arguments()
-    # Parse the output size
-    output_size = args.output_size.split("x")
-    if len(output_size) != 2:
-        raise ValueError("Output size must be in the format WIDTHxHEIGHT")
-    try:
-        output_size = (int(output_size[0]), int(output_size[1]))
-    except ValueError:
-        raise ValueError("Output size must be in the format WIDTHxHEIGHT")
-    if len(output_size) != 2:
-        raise ValueError("Output size must be in the format WIDTHxHEIGHT")
-    if output_size[0] <= 0 or output_size[1] <= 0:
-        raise ValueError("Output size must be positive integers")
+    # Parse and validate the output size
+    output_size = validate_output_size(args.output_size)
 
     handler = PtychoNNPipelinedBatch(
         model_path=args.model_path,
