@@ -1,7 +1,7 @@
 import pycuda.driver as cuda
 import tensorrt as trt
 import logging
-
+import os
 
 def engine_build_from_onnx(onnx_mdl, fp16=False):
     EXPLICIT_BATCH = 1 << (int)(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
@@ -12,7 +12,13 @@ def engine_build_from_onnx(onnx_mdl, fp16=False):
         config.set_flag(trt.BuilderFlag.FP16)
     else:
         config.set_flag(trt.BuilderFlag.TF32)
-    config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
+
+    # TensorRT v8.4 and later requires the workspace size to be set in the config.
+    # In earlier versions, this was set in the builder.
+    try:
+        config.max_workspace_size = 1 * (1 << 30) # the maximum size that any layer in the network can use
+    except AttributeError:
+        config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, 1 * (1 << 30))
 
     network = builder.create_network(EXPLICIT_BATCH)
     parser  = trt.OnnxParser(network, TRT_LOGGER)
@@ -24,7 +30,12 @@ def engine_build_from_onnx(onnx_mdl, fp16=False):
     if not success:
         return None
 
-    return builder.build_engine(network, config)
+    try:
+        return builder.build_engine(network, config)
+    except AttributeError:
+        # TensorRT v8.4 and later requires the engine to be built in a different way.
+        # In earlier versions, this was done in the builder.
+        return builder.build_serialized_network(network, config)
 
 
 def create_engine_from_onnx(onnx_mdl, path="out.trt", fp16=False):
@@ -33,17 +44,29 @@ def create_engine_from_onnx(onnx_mdl, path="out.trt", fp16=False):
         return None
 
     with open(path, mode='wb') as f:
-        f.write(bytearray(out.serialize()))
+        try:
+            f.write(bytearray(out.serialize()))
+        except AttributeError:
+            # TensorRT v8.4 and later requires the engine to be serialized in a different way.
+            # In earlier versions, this was done in the builder.
+            f.write(bytearray(out))
         print("generating file done!")
 
 
 def mem_allocation(engine):
     # Determine dimensions and create page-locked memory buffers (i.e. won't be swapped to disk) to hold host inputs/outputs.
 
-    in_sz = trt.volume(engine.get_binding_shape(0)) * engine.max_batch_size
+    # NOTE: Below line is for <= TensorRT 8.x
+    # For more information, see: https://docs.nvidia.com/deeplearning/tensorrt/latest/api/migration-guide.html#python-api-changes
+    # in_sz = trt.volume(engine.get_binding_shape(0)) * engine.max_batch_size
+
+    # Below line is for TensorRT 10.x
+    in_tensor_name = engine.get_tensor_name(0)
+    in_sz = trt.volume(engine.get_tensor_shape(in_tensor_name))
     h_input  = cuda.pagelocked_empty(in_sz, dtype='float32')
 
-    out_sz   = trt.volume(engine.get_binding_shape(1)) * engine.max_batch_size
+    out_tensor_name = engine.get_tensor_name(1)
+    out_sz   = trt.volume(engine.get_tensor_shape(out_tensor_name))
     h_output = cuda.pagelocked_empty(out_sz, dtype='float32')
 
     # Allocate device memory for inputs and outputs.
@@ -60,7 +83,8 @@ def inference(context, h_input, h_output, d_input, d_output, stream):
     cuda.memcpy_htod_async(d_input, h_input, stream)
 
     # Run inference.
-    context.execute_async_v2(bindings=[int(d_input), int(d_output)], stream_handle=stream.handle)
+    # context.execute_async_v2(bindings=[int(d_input), int(d_output)], stream_handle=stream.handle)
+    context.execute_async_v3(stream_handle=stream.handle)
 
     # Transfer predictions back from the GPU.
     cuda.memcpy_dtoh_async(h_output, d_output, stream)

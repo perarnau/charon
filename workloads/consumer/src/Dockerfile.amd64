@@ -1,4 +1,5 @@
-FROM nvcr.io/nvidia/tensorrt:23.05-py3
+ARG TENSORRT_IMAGE=nvcr.io/nvidia/tensorrt:23.05-py3
+FROM ${TENSORRT_IMAGE}
 
 RUN apt-get update \
   && apt-get install -y \
@@ -57,7 +58,6 @@ RUN cd /app \
 RUN cd /app \
   && git clone https://github.com/anlsys/libnrm.git \
   && cd /app/libnrm \
-  && git checkout feature/prometheus-exporter \
   && ./autogen.sh \
   && ./configure --prefix=/usr --with-python \
   && make -j \
@@ -72,8 +72,10 @@ ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychoNN_8_128_fp16.t
 # TRT models compatible with TRT compute 75
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
 # ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
-ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt75.trt /app/model_512_fp32.trt
-ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt75.trt /app/model_512_fp16.trt
+# ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp32_trt75.trt /app/model_512_fp32.trt
+# ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/ptychonn_512_bsz8_fp16_trt75.trt /app/model_512_fp16.trt
+ADD ptychonn_512_bsz8_fp16.trt /app/model_512_fp16.trt
+ADD ptychonn_512_bsz8_fp32.trt /app/model_512_fp32.trt
 ADD https://web.lcrc.anl.gov/public/waggle/models/ptychonn/diff_scan_810.npy /app/scan.npy
 
 COPY requirements.txt /app

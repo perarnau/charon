@@ -1,0 +1,15 @@
+name: "Master Node Provisioning"
+description: "Provision a master node using the existing Ansible playbook"
+playbook: "../../ansible/provision-masternode.yaml"
+inventory:
+  - "localhost"
+variables:
+  ansible_connection: "local"
+  ansible_python_interpreter: "/usr/bin/python3"
+priority: 10
+timeout: 600
+tags:
+  - "example"
+  - "ansible"
+  - "provisioning"
+  - "masternode"

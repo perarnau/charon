@@ -1,0 +1,570 @@
+---
+- name: Provisioning A Master Node
+  hosts: localhost
+  gather_facts: true
+  become: true
+
+  vars:
+    target_k3s_version: "v1.33.1+k3s1"
+    k3s_namespace: default
+    scrape_interval: 5s
+    general_interval: 5s
+    rapid_interval: 2s
+    k3s_cluster_cidr: "10.31.0.0/16"
+    k3s_service_cidr: "10.32.0.0/16"
+
+  tasks:
+  # NOTE: this is only for Chameleon machines as their OS images block ingress/egress by default
+  - name: Add Kubernetes Pod and Service IPs in the firewall
+    ansible.builtin.command: firewall-cmd --permanent --zone=trusted --add-source "{{ k3s_cluster_cidr }}" --add-source "{{ k3s_service_cidr }}"
+    ignore_errors: true
+
+  - name: Add Kubernetes api and metrics server ports in the firewall
+    ansible.builtin.command: firewall-cmd --permanent --add-port=6443/tcp --add-port=10250/tcp --add-port=30080/tcp
+    ignore_errors: true
+
+  - name: Reload firewall for newly added rules
+    ansible.builtin.command: firewall-cmd --reload
+    ignore_errors: true
+      
+  # TODO: we would want to check if the host OS is Debian/Ubuntu
+  - name: Install base packages
+    ansible.builtin.apt:
+      pkg:
+      - curl
+      - python3-pip
+      - apt-transport-https
+      - net-tools
+      # add other packages here
+  
+  - name: Upgrade pip
+    ansible.builtin.shell: pip3 install --upgrade pip
+
+  - name: Install Python packages
+    ansible.builtin.shell: pip3 install kubernetes --break-system-packages
+    become: true
+    become_user: "{{ ansible_user | default('root') }}"
+    when: ansible_user is defined
+
+  
+  - name: Check if Nvidia GPU is available
+    ansible.builtin.command: nvidia-smi --list-gpus
+    register: list_of_nvidia_gpus
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set a number of available Nvidia GPUs
+    when: list_of_nvidia_gpus.rc == 0
+    ansible.builtin.set_fact:
+      number_of_available_nvidia_gpu: "{{ list_of_nvidia_gpus.stdout_lines | length }}"
+
+  - name: Check number of GPUs
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    debug:
+      msg: "Found {{ number_of_available_nvidia_gpu }} GPUs"
+
+  - name: Add the nvidia PPA repository
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    apt_repository:
+      repo: 'ppa:graphics-drivers/ppa'
+      state: present
+
+  - name: Add NVIDIA Container Toolkit GPG key
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt_key:
+      url: https://nvidia.github.io/libnvidia-container/gpgkey
+      state: present
+
+  - name: Add NVIDIA Container Toolkit repository
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt_repository:
+      repo: "deb https://nvidia.github.io/libnvidia-container/stable/deb/$(ARCH) /"
+      state: present
+      update_cache: yes
+
+  - name: Install Nvidia container toolkit
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    ansible.builtin.apt:
+      pkg:
+      - nvidia-container-toolkit
+      update_cache: yes
+
+  # TODO: we may want to skip this if already exists
+  - name: Get k3s installed version
+    ansible.builtin.command: k3s --version
+    register: k3s_version_output
+    changed_when: false
+    ignore_errors: true
+
+  - name: Set k3s installed version
+    when: k3s_version_output.rc == 0
+    ansible.builtin.set_fact:
+      installed_k3s_version: "{{ k3s_version_output.stdout_lines[0].split(' ')[2] }}"
+
+  - name: Install Kubernetes (k3s), skipped if the same version already installed
+    ansible.builtin.shell: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="{{ target_k3s_version }}" K3S_CLUSTER_SECRET=4tX0DUZ0uQknRtVUAKjt INSTALL_K3S_EXEC="server --cluster-cidr {{ k3s_cluster_cidr }} --service-cidr {{ k3s_service_cidr }}" sh -
+    args:
+      executable: /bin/bash
+    when: k3s_version_output.rc != 0 or installed_k3s_version is version(target_k3s_version, '<')
+  
+  - name: Install Helm chart
+    ansible.builtin.shell: curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    args:
+      executable: /bin/bash
+  
+  - name: Ensure k3s systemd is in running state
+    service:
+      name: k3s
+      state: started
+    register: k3sDetails
+    until: k3sDetails.status.ActiveState == "active"
+    retries: 10
+    delay: 50
+
+  - name: Create directory .kube
+    when: ansible_user is defined
+    ansible.builtin.file:
+      path: ~{{ ansible_user }}/.kube
+      state: directory
+      owner: "{{ ansible_user }}"
+      mode: "u=rwx,g=rx,o="
+
+  - name: Copy config file to user home directory
+    when: ansible_user is defined
+    ansible.builtin.copy:
+      src: /etc/rancher/k3s/k3s.yaml
+      dest: ~{{ ansible_user }}/.kube/config
+      remote_src: true
+      owner: "{{ ansible_user }}"
+      mode: "u=rw,g=,o="
+
+  - name: Configure default KUBECONFIG for user
+    when: ansible_user is defined
+    ansible.builtin.lineinfile:
+      path: ~{{ ansible_user }}/.bashrc
+      regexp: 'export KUBECONFIG=~/.kube/config'
+      line: 'export KUBECONFIG=~/.kube/config # Added by k3s-ansible'
+      state: present
+
+  - name: Wait for kubeconfig to be accessible
+    when: ansible_user is defined
+    ansible.builtin.wait_for:
+      path: "~{{ ansible_user }}/.kube/config"
+      timeout: 30
+
+  # Fallback: Set readable permissions on the original kubeconfig if ansible_user is not defined
+  - name: Set readable permissions on k3s kubeconfig (fallback)
+    when: ansible_user is not defined
+    ansible.builtin.file:
+      path: /etc/rancher/k3s/k3s.yaml
+      mode: '0644'
+
+  - name: Create our namespace in Kubernetes
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: "{{ k3s_namespace }}"
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Add Nvidia DCGM to Helm chart
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm_repository:
+      name: gpu-helm-charts
+      repo_url: https://nvidia.github.io/dcgm-exporter/helm-charts
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create numaflow-system namespace in Kubernetes
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: numaflow-system
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Apply numaflow install.yaml in numaflow-system namespace
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/config/install.yaml
+      namespace: numaflow-system
+    become: "{{ false if ansible_user is defined else true }}"
+
+  # NOTE: Uncomment the following lines if you want to use the default JetStream as the InterStepBufferService
+  # - name: Apply numaflow isbsvc-jetstream.yaml in numaflow-system namespace
+  #   kubernetes.core.k8s:
+  #     kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+  #     state: present
+  #     src: https://raw.githubusercontent.com/numaproj/numaflow/v1.4.6/examples/0-isbsvc-jetstream.yaml
+  #     namespace: "{{ k3s_namespace }}"
+  #   become: "{{ false if ansible_user is defined else true }}"
+
+  # Prometheus Operator Installation for Numaflow Metrics
+  - name: Add Prometheus Community Helm repository
+    kubernetes.core.helm_repository:
+      name: prometheus-community
+      repo_url: https://prometheus-community.github.io/helm-charts
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create monitoring namespace
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: monitoring
+      api_version: v1
+      kind: Namespace
+      state: present
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Install kube-prometheus-stack with Grafana
+    kubernetes.core.helm:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: prometheus
+      namespace: monitoring
+      chart_ref: prometheus-community/kube-prometheus-stack
+      values:
+        grafana:
+          enabled: true
+          adminPassword: admin123
+          service:
+            type: NodePort
+            nodePort: 30080
+          persistence:
+            enabled: false
+        prometheus:
+          prometheusSpec:
+            storageSpec: {}
+        alertmanager:
+          enabled: false
+        nodeExporter:
+          enabled: true
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Deploy Nvidia DCGM in Kubernetes
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.helm:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      name: nvidia-dcgm
+      namespace: "{{ k3s_namespace }}"
+      chart_ref: gpu-helm-charts/dcgm-exporter
+      set_values:
+      - value: runtimeClassName=nvidia
+        value_type: string
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for DCGM Exporter
+    when: list_of_nvidia_gpus.rc == 0 and number_of_available_nvidia_gpu | int >= 1
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          labels:
+            instance: primary
+            release: prometheus
+          name: dcgm-monitor
+          namespace: monitoring
+        spec:
+          endpoints:
+          - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+            honorLabels: true
+            honorTimestamps: false
+            interval: "{{ rapid_interval }}"
+            path: /metrics
+            port: metrics
+            relabelings:
+            - sourceLabels:
+              - __metrics_path__
+              targetLabel: metrics_path
+            - action: replace
+              targetLabel: job
+              replacement: integrations/dcgm-exporter
+            scheme: http
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          selector:
+            matchLabels:
+              app.kubernetes.io/name: dcgm-exporter
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow Pipeline Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-pipeline-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: metrics
+            targetPort: 2469
+            interval: "{{ general_interval }}"
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: vertex
+              app.kubernetes.io/managed-by: vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/pipeline-name
+              operator: Exists
+            - key: numaflow.numaproj.io/vertex-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow Pipeline Daemon Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-pipeline-daemon-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: tcp
+            targetPort: 4327
+            interval: "{{ general_interval }}"
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: daemon
+              app.kubernetes.io/managed-by: pipeline-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/pipeline-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow MonoVertex Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-mvtx-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: metrics
+            targetPort: 2469
+            interval: "{{ general_interval }}"
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: mono-vertex
+              app.kubernetes.io/managed-by: mono-vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/mono-vertex-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow MonoVertex Daemon Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-mvtx-daemon-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: https
+            port: tcp
+            targetPort: 4327
+            interval: "{{ general_interval }}"
+            tlsConfig:
+              insecureSkipVerify: true
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: mono-vertex-daemon
+              app.kubernetes.io/managed-by: mono-vertex-controller
+              app.kubernetes.io/part-of: numaflow
+            matchExpressions:
+            - key: numaflow.numaproj.io/mono-vertex-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create PodMonitor for Numaflow Controller Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: PodMonitor
+        metadata:
+          name: numaflow-controller-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - numaflow-system
+          podMetricsEndpoints:
+          - scheme: http
+            port: metrics
+            targetPort: 9090
+            interval: "{{ rapid_interval }}"
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: controller-manager
+              app.kubernetes.io/name: controller-manager
+              app.kubernetes.io/part-of: numaflow
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create ServiceMonitor for Numaflow JetStream ISB Service
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: ServiceMonitor
+        metadata:
+          name: numaflow-isbsvc-jetstream-metrics
+          namespace: monitoring
+          labels:
+            app.kubernetes.io/part-of: numaflow
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          endpoints:
+          - scheme: http
+            port: metrics
+            targetPort: 7777
+            interval: "{{ general_interval }}"
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: isbsvc
+              app.kubernetes.io/managed-by: isbsvc-controller
+              app.kubernetes.io/part-of: numaflow
+              numaflow.numaproj.io/isbsvc-type: jetstream
+            matchExpressions:
+            - key: numaflow.numaproj.io/isbsvc-name
+              operator: Exists
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Wait for Prometheus Operator to be ready
+    kubernetes.core.k8s_info:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      api_version: apps/v1
+      kind: Deployment
+      name: prometheus-kube-prometheus-operator
+      namespace: monitoring
+      wait: true
+      wait_condition:
+        type: Available
+        status: "True"
+      wait_timeout: 300
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Create PodMonitor for Workload Metrics
+    kubernetes.core.k8s:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      state: present
+      definition:
+        apiVersion: monitoring.coreos.com/v1
+        kind: PodMonitor
+        metadata:
+          name: workload-metrics
+          namespace: monitoring
+          labels:
+            release: prometheus
+        spec:
+          namespaceSelector:
+            matchNames:
+            - "{{ k3s_namespace }}"
+          podMetricsEndpoints:
+          - scheme: http
+            targetPort: 9100
+            interval: "{{ rapid_interval }}"
+            path: /metrics
+          selector:
+            matchLabels:
+              role: workload
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Wait for Grafana to be ready
+    kubernetes.core.k8s_info:
+      kubeconfig: "{{ '~' + ansible_user + '/.kube/config' if ansible_user is defined else '/etc/rancher/k3s/k3s.yaml' }}"
+      api_version: apps/v1
+      kind: Deployment
+      name: prometheus-grafana
+      namespace: monitoring
+      wait: true
+      wait_condition:
+        type: Available
+        status: "True"
+      wait_timeout: 300
+    become: "{{ false if ansible_user is defined else true }}"
+
+  - name: Display Grafana access information
+    ansible.builtin.debug:
+      msg: |
+        ✅ Grafana Dashboard is now available!
+        
+        📊 Access Grafana:
+        URL: http://<node-ip>:30080
+        Username: admin
+        Password: admin123
+        
+        🔍 Prometheus is also available via port-forwarding:
+        kubectl port-forward -n monitoring svc/prometheus-operated 9090:9090
+        
+        📈 Pre-configured dashboards should be available for:
+        - Kubernetes cluster metrics
+        - Node metrics  
+        - Numaflow pipeline metrics (via ServiceMonitors)
+        
+        💡 Access methods:
+        1. Direct access: Replace <node-ip> with your actual node IP
+        2. Port-forwarding: kubectl port-forward -n monitoring svc/prometheus-grafana 30080:30080
+        3. Local access: http://localhost:30080 (when using port-forwarding)
+         🔍 To get your node IP: kubectl get nodes -o wide

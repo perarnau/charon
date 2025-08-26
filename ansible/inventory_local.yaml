@@ -1,0 +1,6 @@
+---
+charon_test:
+  hosts:
+    main:
+      ansible_host: localhost
+      ansible_user: waggle

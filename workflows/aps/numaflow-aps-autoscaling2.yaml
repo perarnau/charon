@@ -1,0 +1,88 @@
+apiVersion: numaflow.numaproj.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: ptychography
+spec:
+  vertices:
+    - name: in
+      source:
+        udsource:
+          container:
+            image: local/pvapy-udsource:0.0.2
+            resources: {}
+            imagePullPolicy: Never
+            command:
+            - pvapy-hpc-consumer
+            args:
+            - -ll
+            - error
+            - --input-channel
+            - pvapy:image
+            - --consumer-id
+            - '1'
+            - --control-channel
+            - processor:*:control
+            - --status-channel
+            - processor:*:status
+            - --output-channel
+            - processor:*:output
+            - --processor-file
+            - /opt/app/numaflowProcessor.py
+            - --processor-class
+            - NumaflowImageProcessor
+            - --n-consumers
+            - '1'
+            - --server-queue-size
+            - '1000'
+            - --distributor-updates
+            - '8'
+            - --disable-curses
+            env:
+            - name: DEBUG
+              value: "true"
+      scale:
+        # Pvapy UDSource duplicates messages when > 1 replica is used
+        min: 7
+        max: 7
+    - name: cat
+      udf:
+        container:
+          image: gemblerz/ptychonn-udf:0.0.2
+          imagePullPolicy: Always
+          resources:
+            limits:
+              cpu: 1000m
+            requests:
+              cpu: 1000m
+          env:
+          - name: DEBUG
+            value: "true"
+      scale:
+        min: 1
+        max: 13
+        lookbackSeconds: 30 # how long to look back to calculate the rate
+        scaleUpCooldownSeconds: 10 # cooldown period after scaling up
+        scaleDownCooldownSeconds: 20 # cooldown period after scaling down
+        targetBufferAvailability: 90 # target buffer availability percentage
+      limits:
+        readBatchSize: 8
+        bufferMaxLength: 10000
+      runtimeClassName: nvidia
+    - name: out
+      sink:
+        log: {}
+        retryStrategy:
+          onFailure: retry
+      scale:
+        min: 1
+        max: 5
+        lookbackSeconds: 1 # how long to look back to calculate the rate
+        scaleUpCooldownSeconds: 3 # cooldown period after scaling up
+        scaleDownCooldownSeconds: 10 # cooldown period after scaling down
+        targetBufferAvailability: 80 # target buffer availability percentage
+      updateStrategy: {}
+  edges:
+    - from: in
+      to: cat
+    - from: cat
+      to: out

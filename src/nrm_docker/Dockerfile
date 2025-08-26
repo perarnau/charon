@@ -27,13 +27,14 @@ RUN apt-get update \
   libomp5 \
   python3-pip
 
-RUN add-apt-repository ppa:geopm/release \
-  && apt-get update \
-  && apt-get install -y \
-  geopm-service \
-  libgeopmd-dev \
-  libgeopmd2 \
-  python3-geopmdpy
+# NOTE: We are not using geopm for now
+# RUN add-apt-repository ppa:geopm/release \
+#   && apt-get update \
+#   && apt-get install -y \
+#   geopm-service \
+#   libgeopmd-dev \
+#   libgeopmd2 \
+#   python3-geopmdpy
 
 WORKDIR /app
 RUN cd /app \
@@ -41,12 +42,12 @@ RUN cd /app \
   && cd /app/bats-core \
   && ./install.sh /usr
 
+# && ./configure --prefix=/usr --with-python --with-geopm \
 RUN cd /app \
   && git clone https://github.com/anlsys/libnrm.git \
   && cd /app/libnrm \
-  && git checkout feature/prometheus-exporter \
   && ./autogen.sh \
-  && ./configure --prefix=/usr --with-python --with-geopm \
+  && ./configure --prefix=/usr --with-python \
   && make -j \
   && make install
 

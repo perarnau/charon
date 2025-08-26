@@ -1,4 +1,11 @@
 .DS_Store
 python codes/
 RESULTS/
-__pycache__
+__pycache__/
+bin/
+logs/
+records/
+tmp/
+
+*.onnx
+*.trt

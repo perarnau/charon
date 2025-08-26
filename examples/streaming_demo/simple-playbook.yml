@@ -1,0 +1,22 @@
+---
+- name: Simple Demo Playbook
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+    - name: Show welcome message
+      debug:
+        msg: "{{ message | default('Hello from Charon Ansible job!') }}"
+
+    - name: Simulate some work
+      debug:
+        msg: "Job is running..."
+
+    - name: Wait a moment
+      pause:
+        seconds: 3
+
+    - name: Show completion message
+      debug:
+        msg: "Job completed successfully!"

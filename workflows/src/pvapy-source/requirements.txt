@@ -1,0 +1,3 @@
+pvapy==5.5.*
+pynumaflow
+numpy
