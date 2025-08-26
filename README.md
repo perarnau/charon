@@ -6,10 +6,21 @@ The Charon project provides a set of tools to build a computing infrastructure w
 
 This repository contains [scripts](ansible/) to provision a set of computing machines and build a Kubernetes (k3s) cluster using the machines. Then, you can tap into Grafana dashboard on the master node of the cluster to monitor performance of the system and any applications you launch in the Kubernetes cluster. You can also develop and deploy your controller to handle user applications based on the system and application performance. The [data] directory holds a few datasets collected from experiments.
 
+# CharonControl
+
+[**CharonCtl**](docs/charonctl.md) is an interactive command-line interface that serves as the central management tool for Charon infrastructure and distributed computing workflows. It provides a unified interface for provisioning computing clusters through Ansible automation, deploying and managing Numaflow data pipelines on Kubernetes, executing direct kubectl operations, and collecting performance metrics from Prometheus servers. With features like auto-completion, secure credential handling, and support for both local and remote operations, charonctl streamlines the entire lifecycle of distributed computing infrastructure—from initial cluster provisioning to workload deployment and performance monitoring—enabling researchers and developers to focus on their computational work rather than infrastructure complexity.
+
+# Get Started with Example
+
+The best way to learn a tool is often through an end-to-end example. We provide [a comprehensive example](examples/aps-ptychonn.md) that illustrates a scientific workflow for ptychography imaging in beamline.
+
 ## Provisioning a Computing Cluster
 Please refer to the [README](ansible/README.md) for details.
 
 ## Install Node Resource Manager for Publishing Metrics
+
+> WARNING: We deprecated using NRM and moved into Kubernetes-native controllers.
+
 Argonne's Node Resource Manager (NRM) publishes data pushed from data sources. To run,
 
 ```bash
@@ -28,9 +39,6 @@ You should see a heartbeat message from the NRM instance,
 event: 1738868720562817129 daemon.tick nrm.hwloc.Machine.0 1.000000
 event: 1738868721562980582 daemon.tick nrm.hwloc.Machine.0 1.000000
 ```
-
-## Run Workloads
-
 
 ## Developer Notes
 Some useful developer notes and a list of todo items for improvement can be found [here](TODO.md).

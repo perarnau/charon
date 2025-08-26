@@ -4,10 +4,44 @@ Charonctl is an interactive command-line interface for managing Charon infrastru
 
 ## Installation
 
-Build the CLI from source:
+### Build from Source
 
 ```bash
+# Clone the repository
+git clone https://github.com/perarnau/charon.git
+cd charon
+
+# Build the CLI
 go build -o charonctl cmd/cli/main.go
+
+# Make it executable (Linux/macOS)
+chmod +x charonctl
+
+# Optional: Move to PATH
+sudo mv charonctl /usr/local/bin/
+```
+
+### Prerequisites
+
+- Go 1.24.1 or later
+- Ansible (for provisioning functionality)
+- kubectl (for Kubernetes operations)
+- Access to target infrastructure (for provisioning)
+
+## Quick Start
+
+1. **Build charonctl**: `go build -o charonctl cmd/cli/main.go`
+2. **Start interactive mode**: `./charonctl`
+3. **See available commands**: `help`
+4. **Tab completion**: Press Tab to see command completions
+5. **Exit**: Type `exit` or press Ctrl+D
+
+**Common first steps:**
+```bash
+./charonctl
+charon> provision ansible/provision-masternode.yaml  # Set up infrastructure
+charon> kubectl get nodes                           # Verify cluster
+charon> run workflows/numaflow-simple.yaml          # Deploy pipeline
 ```
 
 ## Usage
@@ -34,19 +68,23 @@ echo "help" | ./charonctl
 
 ## Available Commands
 
-### `provision <playbook.yml>`
+### `provision <playbook.yml> [host-ip-or-name]`
 
 Provisions infrastructure by running an Ansible playbook.
 
 **Example:**
 ```bash
 provision ansible/provision-masternode.yaml
+provision ansible/provision-masternode.yaml 192.168.1.100
+provision ansible/provision-masternode.yaml my-server.example.com
 ```
 
 **Features:**
 - Automatically detects if the playbook requires sudo privileges
 - Prompts for target username (ansible_user) interactively
 - Prompts for sudo password when needed
+- Supports custom target host specification
+- Automatic local connection detection for localhost/127.0.0.1
 - Supports environment variables for automation:
   - `ANSIBLE_USER` - Set target username
   - `ANSIBLE_BECOME_PASS` - Set sudo password
@@ -54,6 +92,7 @@ provision ansible/provision-masternode.yaml
 **Prerequisites:**
 - Ansible must be installed and `ansible-playbook` available in PATH
 - Playbook file must exist
+- SSH access to target host (if not localhost)
 
 ### `run <yaml-file-or-url> [kubectl-args...]`
 
@@ -103,6 +142,30 @@ stop analytics-pipeline monitoring
 - Numaflow CRDs installed in the cluster
 - Appropriate permissions to delete pipelines
 
+### `kubectl <kubectl-command> [args...]`
+
+Execute kubectl commands directly through charonctl with automatic kubeconfig handling.
+
+**Example:**
+```bash
+kubectl get pods
+kubectl apply -f my-resource.yaml
+kubectl get nodes -o wide
+kubectl describe deployment my-app
+```
+
+**Features:**
+- Direct passthrough to kubectl with all arguments preserved
+- Automatic kubeconfig path detection and configuration
+- Interactive support for commands requiring user input
+- Full access to all kubectl functionality
+- Inherits current terminal session for output formatting
+
+**Prerequisites:**
+- kubectl must be installed and available in PATH
+- Valid kubeconfig for cluster access
+- Appropriate permissions for the kubectl operations you want to perform
+
 ### `metrics <prometheus-url> [options]`
 
 Collect and export metrics data from a Prometheus server for analysis and monitoring.
@@ -150,6 +213,16 @@ Display available commands and usage information.
 ### `exit`
 
 Exit the CLI cleanly.
+
+## Version Information
+
+This documentation covers charonctl built with:
+- Go 1.24.1+
+- Compatible with Kubernetes clusters
+- Supports Numaflow pipeline management
+- Prometheus metrics integration
+
+To check your Go version: `go version`
 
 ## Examples
 
@@ -236,13 +309,37 @@ charon> metrics http://localhost:9090 --queries-file workflows/aps/metrics.txt -
 charon> stop simple-pipeline  # Stop the deployed pipeline
 ```
 
+### Direct Kubernetes Management
+
+Execute kubectl commands directly:
+```bash
+./charonctl
+charon> kubectl get nodes                           # Check cluster nodes
+charon> kubectl get pods --all-namespaces          # List all pods
+charon> kubectl apply -f workflows/numaflow-gpu.yaml # Apply workflow files
+charon> kubectl port-forward -n monitoring svc/prometheus 9090:9090  # Port forwarding
+```
+
+### Combined Infrastructure and Pipeline Management
+
+```bash
+./charonctl
+charon> provision ansible/provision-masternode.yaml 192.168.1.100
+charon> kubectl get nodes                           # Verify cluster is ready
+charon> run workflows/numaflow-simple.yaml         # Deploy pipeline
+charon> kubectl get pipeline                       # Check pipeline status
+charon> metrics http://localhost:9090 --list-metrics
+```
+
 ## Features
 
-- **Auto-completion**: Tab completion for commands, file paths, and pipeline names
+- **Auto-completion**: Tab completion for commands, file paths, pipeline names, and kubectl commands
 - **Interactive prompts**: Secure password input and user configuration
 - **File completion**: Smart completion for YAML files (Ansible playbooks and Numaflow pipelines)
 - **Pipeline management**: Auto-completion and management of Numaflow pipelines
+- **Direct kubectl access**: Execute any kubectl command with automatic kubeconfig handling
 - **Numaflow integration**: Apply pipeline YAML from local files or HTTP URLs
+- **Prometheus metrics**: Collect and export metrics with flexible time ranges and formats
 - **Cross-platform**: Works on Linux, macOS, and Windows
 - **Terminal handling**: Proper cursor and terminal state management
 - **Signal handling**: Graceful cleanup on Ctrl+C
@@ -275,6 +372,12 @@ charon> stop simple-pipeline  # Stop the deployed pipeline
 - Install kubectl: Follow the [official installation guide](https://kubernetes.io/docs/tasks/tools/)
 - Ensure kubectl is in your PATH
 
+**kubectl command issues**
+- Ensure kubectl is properly installed and configured
+- Check if your kubeconfig file is valid: `kubectl config view`
+- Verify cluster connectivity: `kubectl cluster-info`
+- For permission issues, check your RBAC settings
+
 **"Permission denied" errors**
 - Ensure the target user has appropriate permissions
 - Verify sudo password is correct
@@ -295,6 +398,11 @@ charon> stop simple-pipeline  # Stop the deployed pipeline
 - Ensure Numaflow is installed and pipelines exist in your cluster
 - Check if kubectl can access your cluster: `kubectl get pipeline --all-namespaces`
 - Verify you have permissions to list pipelines across namespaces
+
+**Command auto-completion not working**
+- Restart the charonctl session
+- Ensure you have proper permissions to list resources
+- Check if the cluster is accessible
 
 **Terminal display issues**
 - The CLI handles terminal state automatically
