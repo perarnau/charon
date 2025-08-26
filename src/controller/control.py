@@ -86,7 +86,10 @@ class Controller:
     def pid_control(self, error):
         diff_error = error - self.previous_error
         control_signal = self.K_p * error + self.K_d * diff_error
-        containers_needed_total = max(1, control_signal // self.CONTAINER_CAPACITY)
+        if control_signal > 0:
+            containers_needed_total = math.ceil(control_signal / self.CONTAINER_CAPACITY)
+        else:
+            containers_needed_total = 0
         self.previous_error = error
 
         self.writer.add_scalar("error", error, time.time())
